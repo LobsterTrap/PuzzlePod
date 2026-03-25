@@ -1,0 +1,32 @@
+# code-assistant.container — Code assistant agent with network gating.
+#
+# Runs an AI coding assistant with:
+# - Branch isolation for filesystem changes
+# - Gated network (github, pypi, npmjs, crates.io only)
+# - code-assistant profile for exec allowlist
+
+[Unit]
+Description=AI Code Assistant with PuzzlePod branching
+After=puzzled.service
+Requires=puzzled.service
+
+[Container]
+Image=localhost/code-assistant:latest
+Exec=/usr/bin/python3 /app/assistant.py
+
+Annotation=run.oci.handler=puzzlepod
+Annotation=org.lobstertrap.puzzlepod.branch=code-assistant
+Annotation=org.lobstertrap.puzzlepod.profile=code-assistant
+Annotation=org.lobstertrap.puzzlepod.base_path=/var/projects
+Annotation=org.lobstertrap.puzzlepod.network_mode=gated
+
+Volume=/var/projects:/workspace:Z
+Memory=1G
+PidsLimit=128
+Environment=PUZZLEPOD_WORKSPACE=/workspace
+
+[Service]
+Restart=on-failure
+
+[Install]
+WantedBy=default.target

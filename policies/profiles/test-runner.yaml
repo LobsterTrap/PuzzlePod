@@ -1,0 +1,106 @@
+name: test-runner
+description: >
+  Profile for automated test execution agents. Gated network access to
+  package registries for dependency resolution. Supports pytest, cargo test,
+  npm test, and Go test across multiple language ecosystems.
+
+filesystem:
+  read_allowlist:
+    - /usr/share
+    - /usr/lib
+    - /usr/lib64
+    - /usr/include
+    - /etc/alternatives
+    - /etc/ld.so.cache
+    - /etc/ld.so.conf.d
+  write_allowlist:
+    - /tmp
+  denylist:
+    - /etc/shadow
+    - /etc/gshadow
+    - /etc/ssh
+    - /root/.ssh
+    - /etc/sudoers
+    - /etc/sudoers.d
+  # N15: Defense-in-depth read/write denylists
+  read_denylist:
+    - /etc/shadow
+    - /etc/gshadow
+    - /etc/sudoers
+    - /etc/sudoers.d
+  write_denylist:
+    - /etc
+    - /usr
+    - /boot
+    - /sbin
+    - /bin
+    - /lib
+    - /lib64
+    - /var/log
+    - /root
+
+exec_allowlist:
+  - /usr/bin/pytest
+  - /usr/bin/python3
+  - /usr/bin/cargo
+  - /usr/bin/rustc
+  - /usr/bin/npm
+  - /usr/bin/node
+  - /usr/bin/go
+  - /usr/bin/cat
+  - /usr/bin/ls
+  - /usr/bin/grep
+  - /usr/bin/find
+  - /usr/bin/diff
+  - /usr/bin/wc
+
+# T24: Expanded exec_denylist — privilege escalation + exfiltration vectors
+exec_denylist:
+  - nsenter
+  - unshare
+  - chroot
+  - mount
+  - strace
+  - gdb
+  - su
+  - sudo
+  - pkexec
+  - dd
+  - nc
+  - ncat
+  - socat
+  - capsh
+  - setcap
+  - modprobe
+  - insmod
+  - kexec
+  - bpftool
+
+resource_limits:
+  memory_bytes: 1073741824     # 1 GiB
+  cpu_shares: 150
+  io_weight: 100
+  max_pids: 128
+  storage_quota_mb: 2048
+  inode_quota: 20000
+
+network:
+  mode: Gated
+  allowed_domains:
+    - pypi.org
+    - files.pythonhosted.org
+    - registry.npmjs.org
+    - crates.io
+    - static.crates.io
+    - proxy.golang.org
+    - sum.golang.org
+
+behavioral:
+  max_deletions: 50
+  max_reads_per_minute: 3000
+  credential_access_alert: true
+
+seccomp_mode: Permissive
+allow_symlinks: false
+
+fail_mode: FailClosed

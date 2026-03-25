@@ -1,0 +1,23 @@
+[package]
+name = "puzzle-sandbox-demo"
+version = "0.1.0"
+edition = "2021"
+description = "Live kernel enforcement demo for PuzzlePod"
+license = "Apache-2.0"
+
+[[bin]]
+name = "puzzle-sandbox-demo"
+path = "src/main.rs"
+
+[dependencies]
+puzzled = { path = "../puzzled" }
+puzzled-types = { path = "../puzzled-types" }
+clap = { version = "4", features = ["derive"] }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+landlock = "0.4"
+libseccomp = "0.3"
+libc = "0.2"
+
+[lints]
+workspace = true

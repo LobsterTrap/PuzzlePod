@@ -1,0 +1,4 @@
+[
+  {"path": "src/config.py", "kind": "Modified", "size": 2560, "checksum": "cccc3333cccc3333cccc3333cccc3333cccc3333cccc3333cccc3333cccc3333"},
+  {"path": "src/models.py", "kind": "Added", "size": 3072, "checksum": "dddd4444dddd4444dddd4444dddd4444dddd4444dddd4444dddd4444dddd4444"}
+]

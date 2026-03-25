@@ -1,0 +1,93 @@
+name: safety-critical
+description: >
+  Profile for agents operating in safety-critical environments (IEC 61508,
+  ISO 26262). Network is fully blocked. Extremely constrained resources and
+  permissions. Uses FailSafeState mode to enter a controlled safe state on
+  any governance failure. Only deterministic in-kernel enforcement primitives
+  are used on the critical path.
+
+filesystem:
+  read_allowlist:
+    - /usr/share
+    - /usr/lib
+    - /usr/lib64
+  write_allowlist: []
+  denylist:
+    - /etc/shadow
+    - /etc/gshadow
+    - /etc/ssh
+    - /root
+    - /home
+    - /etc/sudoers
+    - /etc/sudoers.d
+    - /boot
+    - /sys
+    - /proc/sysrq-trigger
+  # N15: Defense-in-depth read/write denylists
+  read_denylist:
+    - /etc/shadow
+    - /etc/gshadow
+    - /etc/sudoers
+    - /etc/sudoers.d
+  write_denylist:
+    - /etc
+    - /usr
+    - /boot
+    - /sbin
+    - /bin
+    - /lib
+    - /lib64
+    - /var/log
+    - /root
+
+exec_allowlist:
+  - /usr/bin/python3
+  - /usr/bin/cat
+
+# T24: Expanded exec_denylist — privilege escalation + exfiltration vectors
+exec_denylist:
+  - nsenter
+  - unshare
+  - chroot
+  - mount
+  - strace
+  - gdb
+  - su
+  - sudo
+  - pkexec
+  - dd
+  - nc
+  - ncat
+  - socat
+  - capsh
+  - setcap
+  - modprobe
+  - insmod
+  - kexec
+  - bpftool
+
+resource_limits:
+  memory_bytes: 134217728      # 128 MiB
+  cpu_shares: 25
+  io_weight: 25
+  max_pids: 4
+  storage_quota_mb: 32
+  inode_quota: 200
+
+network:
+  mode: Blocked
+  allowed_domains: []
+
+behavioral:
+  max_deletions: 2
+  max_reads_per_minute: 30
+  credential_access_alert: true
+
+allow_symlinks: false
+
+# Strict mode: default-deny seccomp with curated allowlist.
+# Only explicitly permitted syscalls are allowed. Maximum security posture
+# for safety-critical workloads where the syscall surface is well-defined.
+seccomp_mode: Strict
+
+fail_mode: FailSafeState

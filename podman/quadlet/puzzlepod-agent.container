@@ -1,0 +1,71 @@
+# puzzlepod-agent.container — Podman-native mode Quadlet using OCI hook governance.
+#
+# Install to: ~/.config/containers/systemd/ (rootless)
+#             /etc/containers/systemd/       (rootful)
+#
+# This uses the Podman-native architecture where:
+# - Podman/crun handles container lifecycle (namespaces, cgroups, networking)
+# - puzzled provides governance via OCI hooks (branch semantics, OPA policy)
+# - puzzle-init shim applies irrevocable Landlock inside the container
+# - seccomp USER_NOTIF gates execve/connect/bind through puzzled
+#
+# Start:   systemctl --user start puzzlepod-agent.service
+# Status:  puzzlectl branch list
+# Approve: puzzlectl branch approve <branch-id>
+
+[Unit]
+Description=Governed agent workload (Podman-native mode)
+After=puzzled.service
+Requires=puzzled.service
+
+[Container]
+Image=registry.fedoraproject.org/fedora-minimal:latest
+
+# Override entrypoint with puzzle-init Landlock shim
+Entrypoint=/puzzle-init
+Exec=/bin/sh -c "echo 'Agent running in governed branch'; sleep infinity"
+
+# OCI hook trigger annotation — activates puzzle-hook at createRuntime/poststop
+Annotation=run.oci.handler=puzzlepod
+# Branch identity annotation
+Annotation=org.lobstertrap.puzzlepod.branch=my-agent
+# Profile label for governance
+Label=org.lobstertrap.puzzlepod.profile=standard
+
+# Seccomp profile with USER_NOTIF for daemon-mediated gating
+SecurityOpt=seccomp=/var/lib/puzzled/branches/my-agent/seccomp.json
+
+# SELinux type enforcement for agent domain
+SecurityOpt=label=type:puzzlepod_t
+
+# Branch workspace bind mount (OverlayFS merged dir)
+Mount=type=bind,src=/var/lib/puzzled/branches/my-agent/merged,dst=/workspace
+
+# Landlock shim binary (read-only from host)
+Mount=type=bind,src=/usr/libexec/puzzle-init,dst=/puzzle-init,ro
+
+# Landlock rules for the shim
+Mount=type=bind,src=/var/lib/puzzled/branches/my-agent/landlock.json,dst=/run/puzzlepod/landlock.json,ro
+
+# Environment
+Environment=PUZZLEPOD_BRANCH_ID=my-agent
+Environment=PUZZLEPOD_WORKSPACE=/workspace
+
+# Resource limits
+Memory=512M
+PidsLimit=64
+
+[Service]
+# Ensure branch exists before container start (idempotent)
+ExecStartPre=/usr/bin/puzzlectl branch ensure my-agent --profile=standard
+# Generate seccomp profile
+ExecStartPre=/usr/bin/puzzlectl branch seccomp-profile my-agent --output=path
+# Generate Landlock rules
+ExecStartPre=/usr/bin/puzzlectl branch landlock-rules my-agent --output=path
+
+Restart=on-failure
+RestartSec=5s
+TimeoutStartSec=30s
+
+[Install]
+WantedBy=default.target

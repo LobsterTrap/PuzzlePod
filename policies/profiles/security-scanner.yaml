@@ -1,0 +1,101 @@
+name: security-scanner
+description: >
+  Profile for security scanning and vulnerability assessment agents. Network
+  is fully blocked to prevent data exfiltration. Read-only access to system
+  configuration for audit purposes.
+
+filesystem:
+  read_allowlist:
+    - /usr/share
+    - /usr/lib
+    - /usr/lib64
+    - /etc
+    - /var/log
+  write_allowlist: []
+  denylist:
+    - /etc/shadow
+    - /etc/gshadow
+    - /root/.ssh/id_*
+    # H91: Block access to SSH host keys, sudoers, and PAM configuration
+    - /etc/ssh/ssh_host_*_key
+    - /etc/sudoers
+    - /etc/sudoers.d
+    - /etc/pam.d
+    # J67: Additional sensitive credential paths
+    - /etc/krb5.keytab
+    - /etc/security/opasswd
+    - /etc/openldap/ldap.conf
+  # N15: Defense-in-depth read/write denylists
+  read_denylist:
+    - /etc/shadow
+    - /etc/gshadow
+    - /etc/sudoers
+    - /etc/sudoers.d
+  write_denylist:
+    - /etc
+    - /usr
+    - /boot
+    - /sbin
+    - /bin
+    - /lib
+    - /lib64
+    - /var/log
+    - /root
+
+# T27/T28: nmap/nikto are allowed for localhost-only scanning; curl removed (network blocked)
+exec_allowlist:
+  - /usr/bin/nmap
+  - /usr/bin/nikto
+  - /usr/bin/openssl
+  - /usr/bin/cat
+  - /usr/bin/ls
+  - /usr/bin/grep
+  - /usr/bin/find
+  - /usr/bin/head
+  - /usr/bin/tail
+  - /usr/bin/wc
+  - /usr/bin/sha256sum
+
+# T24: Expanded exec_denylist — privilege escalation + exfiltration vectors
+exec_denylist:
+  - nsenter
+  - unshare
+  - chroot
+  - mount
+  - strace
+  - gdb
+  - su
+  - sudo
+  - pkexec
+  - dd
+  - nc
+  - ncat
+  - socat
+  - capsh
+  - setcap
+  - modprobe
+  - insmod
+  - kexec
+  - bpftool
+
+resource_limits:
+  memory_bytes: 536870912      # 512 MiB
+  cpu_shares: 80
+  io_weight: 80
+  max_pids: 32
+  storage_quota_mb: 512
+  inode_quota: 5000
+
+network:
+  mode: Blocked
+  allowed_domains: []
+
+behavioral:
+  max_deletions: 5
+  max_reads_per_minute: 3000
+  credential_access_alert: true
+
+seccomp_mode: Permissive
+allow_symlinks: false
+
+fail_mode: FailClosed

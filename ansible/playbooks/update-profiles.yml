@@ -1,0 +1,13 @@
+---
+# Profile-only update playbook
+#
+# Usage:
+#   ansible-playbook -i inventory playbooks/update-profiles.yml
+#   ansible-playbook -i inventory playbooks/update-profiles.yml \
+#     -e '{"puzzled_profiles_list": ["code-assistant", "data-analyst"]}'
+
+- name: Update PuzzlePod agent profiles
+  hosts: all
+  become: true
+  roles:
+    - role: profiles

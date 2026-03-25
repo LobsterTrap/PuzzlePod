@@ -1,0 +1,273 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+  CI_IMAGE: ghcr.io/lobstertrap/puzzlepod/ci:fedora42
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # CI: fmt + clippy + unit tests + feature matrix + cargo-deny
+  # ---------------------------------------------------------------------------
+  ci:
+    name: Build & Test
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/lobstertrap/puzzlepod/ci:fedora42
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache cargo registry and build
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            target/
+          key: cargo-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: cargo-${{ runner.os }}-
+
+      - name: "Suite 1/5 — Formatting"
+        run: cargo fmt --all -- --check
+
+      - name: "Suite 2/5 — Clippy Lint"
+        run: cargo clippy --workspace --all-targets -- -D warnings
+
+      - name: "Suite 3/5 — Unit Tests"
+        run: |
+          cargo test -p puzzled --lib
+          cargo test -p puzzled \
+            --test dbus_validation --test diff_engine --test crash_recovery \
+            --test ima_integration --test phase2_features --test policy_evaluation \
+            --test profile_validation --test seccomp_validation --test security_hardening \
+            --test wal_recovery_execution --test wal_recovery --test wal_safety \
+            --test podman_native_integration --test cross_module_integration \
+            --test e2e_governance_lifecycle
+          cargo test -p puzzlectl
+          cargo test -p puzzled-types
+          cargo test -p puzzle-proxy
+          cargo test -p puzzle-hook
+          cargo test -p puzzle-init
+
+      - name: "Suite 4/5 — Feature Flag Matrix"
+        run: |
+          cargo check -p puzzlectl --no-default-features
+          cargo check -p puzzlectl --no-default-features --features tui
+          cargo check -p puzzlectl --no-default-features --features sim
+
+      - name: "Suite 5/5 — Dependency Audit"
+        run: |
+          cargo-deny check advisories
+          cargo-deny check licenses
+          cargo-deny check sources
+          cargo-deny check bans || echo "cargo-deny bans warnings (non-blocking)"
+
+  # ---------------------------------------------------------------------------
+  # Integration: D-Bus integration tests against a live puzzled
+  # ---------------------------------------------------------------------------
+  integration:
+    name: D-Bus Integration
+    needs: [ci]
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/lobstertrap/puzzlepod/ci:fedora42
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache cargo registry and build
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            target/
+          key: cargo-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: cargo-${{ runner.os }}-
+
+      - name: Run D-Bus integration tests
+        run: |
+          set -euo pipefail
+
+          # Install D-Bus daemon if not in the CI image
+          command -v dbus-daemon >/dev/null 2>&1 || dnf install -y --setopt=install_weak_deps=False dbus-daemon dbus-tools
+
+          # Create required directories
+          mkdir -p /run/dbus /var/lib/puzzled/branches/wal /run/puzzled /etc/puzzled/profiles /etc/puzzled/policies /etc/dbus-1/system.d
+
+          # Install D-Bus policy
+          cat > /etc/dbus-1/system.d/org.lobstertrap.PuzzlePod1.conf << 'DBUS'
+          <!DOCTYPE busconfig PUBLIC "-//freedesktop//DTD D-BUS Bus Configuration 1.0//EN"
+           "http://www.freedesktop.org/standards/dbus/1.0/busconfig.dtd">
+          <busconfig>
+            <policy user="root">
+              <allow own="org.lobstertrap.PuzzlePod1"/>
+              <allow send_destination="org.lobstertrap.PuzzlePod1"/>
+              <allow receive_sender="org.lobstertrap.PuzzlePod1"/>
+            </policy>
+            <policy context="default">
+              <allow send_destination="org.lobstertrap.PuzzlePod1"/>
+              <allow receive_sender="org.lobstertrap.PuzzlePod1"/>
+            </policy>
+          </busconfig>
+          DBUS
+
+          # Start D-Bus system bus
+          export DBUS_SYSTEM_BUS_ADDRESS="unix:path=/run/dbus/system_bus_socket"
+          dbus-daemon --config-file=/usr/share/dbus-1/system.conf --fork --print-pid --address="$DBUS_SYSTEM_BUS_ADDRESS" 2>&1 || {
+            echo "dbus-daemon --system failed, trying manual start..."
+            dbus-daemon --fork --print-pid --address="$DBUS_SYSTEM_BUS_ADDRESS" --auth=EXTERNAL 2>&1 || true
+          }
+          sleep 1
+
+          # Install profiles and policies
+          cp policies/profiles/*.yaml /etc/puzzled/profiles/ 2>/dev/null || true
+          cp policies/rules/*.rego /etc/puzzled/policies/ 2>/dev/null || true
+
+          # Write minimal puzzled config
+          cat > /etc/puzzled/puzzled.conf << 'CONF'
+          branch_root: /var/lib/puzzled/branches
+          profiles_dir: /etc/puzzled/profiles
+          policies_dir: /etc/puzzled/policies
+          runtime_dir: /run/puzzled
+          bus_type: system
+          fs_type: ext4
+          max_branches: 64
+          log_level: warn
+          watchdog_timeout_secs: 0
+          commit_timeout_seconds: 300
+          default_action: rollback
+          default_profile: restricted
+          require_human_approval: false
+          require_policies: false
+          require_ima: false
+          require_self_hardening: false
+          governance:
+            evaluation_timeout_ms: 5000
+            require_signature: false
+          fanotify:
+            enable: false
+          bpf_lsm:
+            enable: false
+          CONF
+
+          # Build puzzled
+          echo "=== Building puzzled ==="
+          cargo build -p puzzled
+
+          # Start puzzled in background
+          echo "=== Starting puzzled ==="
+          RUST_LOG=puzzled=warn ./target/debug/puzzled &
+          PUZZLED_PID=$!
+
+          # Wait for D-Bus registration (up to 10 seconds)
+          for i in $(seq 1 20); do
+            if dbus-send --system --dest=org.lobstertrap.PuzzlePod1 --print-reply /org/lobstertrap/PuzzlePod1/Manager org.lobstertrap.PuzzlePod1.Manager.ListBranches >/dev/null 2>&1; then
+              echo "puzzled registered on D-Bus (PID $PUZZLED_PID)"
+              break
+            fi
+            sleep 0.5
+          done
+
+          if ! dbus-send --system --dest=org.lobstertrap.PuzzlePod1 --print-reply /org/lobstertrap/PuzzlePod1/Manager org.lobstertrap.PuzzlePod1.Manager.ListBranches >/dev/null 2>&1; then
+            echo "ERROR: puzzled failed to register on D-Bus within 10s"
+            kill $PUZZLED_PID 2>/dev/null || true
+            exit 1
+          fi
+
+          # Run live D-Bus integration tests
+          echo "=== Suite — Live D-Bus Integration (26 tests) ==="
+          set +e
+          cargo test -p puzzled --test live_dbus_integration -- --test-threads=1
+          TEST_RESULT=$?
+          set -e
+
+          # Stop puzzled
+          kill $PUZZLED_PID 2>/dev/null || true
+          wait $PUZZLED_PID 2>/dev/null || true
+          echo "puzzled stopped"
+
+          exit $TEST_RESULT
+
+  # ---------------------------------------------------------------------------
+  # Security tests (privileged self-hosted runner, manual only)
+  # ---------------------------------------------------------------------------
+  security-test:
+    name: Security Tests
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: [self-hosted, privileged]
+    continue-on-error: true
+    container:
+      image: ghcr.io/lobstertrap/puzzlepod/ci:fedora42
+      options: --privileged
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: "Suite 1/3 — Cargo Integration Tests (root + Linux)"
+        run: |
+          cargo build --workspace
+          cargo test -p puzzled \
+            --test branch_lifecycle --test concurrent_branches --test sandbox_containment \
+            --test e2e_adversarial --test e2e_scenarios --test crash_recovery \
+            --test fanotify_monitoring --test bpf_lsm_hooks --test rogue_agent \
+            --test seccomp_notif_handler \
+            --test dbus_validation --test diff_engine --test ima_integration \
+            --test phase2_features --test policy_evaluation --test profile_validation \
+            --test seccomp_validation --test security_hardening \
+            --test wal_recovery_execution --test wal_recovery --test wal_safety \
+            -- --include-ignored --test-threads=1
+          cargo test -p puzzlectl -- --include-ignored --test-threads=1
+          cargo test -p puzzled-types -- --include-ignored --test-threads=1
+
+      - name: "Suite 2/3 — Security Shell Tests"
+        run: |
+          chmod +x tests/security/*.sh
+          tests/security/run_all.sh
+
+      - name: "Suite 3/3 — Rogue Agent (sandboxed)"
+        run: |
+          SECURITY_TEST_DIR=$(mktemp -d /tmp/security-tests.XXXXXX)
+          cp tests/security/test_rogue_agent.sh "$SECURITY_TEST_DIR/"
+          cp tests/security/helpers.sh "$SECURITY_TEST_DIR/"
+          ./target/debug/puzzle-sandbox-demo exec --allow-read "$SECURITY_TEST_DIR" -- bash "$SECURITY_TEST_DIR/test_rogue_agent.sh"
+
+  # ---------------------------------------------------------------------------
+  # Release build + RPM spec validation
+  # ---------------------------------------------------------------------------
+  release:
+    name: Release Build
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+    needs: [ci]
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/lobstertrap/puzzlepod/ci:fedora42
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build release binaries
+        run: cargo build --workspace --profile release
+
+      - name: Validate RPM specs
+        run: |
+          rpmdev-setuptree
+          for spec in packaging/*.spec; do
+            echo "Validating $spec..."
+            rpmspec -P "$spec" --define "commit test123" --define "shortcommit test" --define "commitdate 20260309" >/dev/null
+          done
+          echo "RPM spec validation passed"
+
+      - name: Upload release artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: puzzlepod-release
+          path: |
+            target/release/puzzled
+            target/release/puzzlectl
+            target/release/puzzle-sandbox-demo
+            target/release/puzzle-phase2-demo
+          retention-days: 7

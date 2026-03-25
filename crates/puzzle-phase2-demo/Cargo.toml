@@ -1,0 +1,27 @@
+[package]
+name = "puzzle-phase2-demo"
+version = "0.1.0"
+edition = "2021"
+description = "Live Phase 2 demo for PuzzlePod hardening features"
+license = "Apache-2.0"
+
+[[bin]]
+name = "puzzle-phase2-demo"
+path = "src/main.rs"
+
+[dependencies]
+puzzled = { path = "../puzzled" }
+puzzled-types = { path = "../puzzled-types" }
+puzzle-proxy = { path = "../puzzle-proxy" }
+clap = { version = "4", features = ["derive"] }
+chrono = { version = "0.4", features = ["serde"] }
+serde_json = { workspace = true }
+tokio = { workspace = true }
+tempfile = "3"
+ed25519-dalek = { version = "2", features = ["std", "rand_core"] }
+rand = "0.8"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+libc = "0.2"

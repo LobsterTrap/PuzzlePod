@@ -1,0 +1,17 @@
+[Unit]
+Description=PuzzlePod Agent Processes Slice
+Documentation=man:puzzled(8)
+Before=slices.target
+
+[Slice]
+# Collective resource limits for all agents
+# M-sd10: Percentage-based limit per PRD — adapts to host memory size
+# V38: 80% may be aggressive on 4GB edge devices. Operators should tune this
+# via drop-in override: systemctl edit puzzle.slice → MemoryMax=60%
+MemoryMax=80%
+TasksMax=1024
+CPUAccounting=yes
+MemoryAccounting=yes
+IOAccounting=yes
+CPUQuota=400%
+IOWeight=50

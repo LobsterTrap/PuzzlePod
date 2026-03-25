@@ -1,0 +1,54 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/puzzled",
+    "crates/puzzlectl",
+    "crates/puzzled-types",
+    "crates/puzzle-proxy",
+    "crates/puzzle-hook",
+    "crates/puzzle-init",
+    "crates/puzzle-sandbox-demo",
+    "crates/puzzle-phase2-demo",
+]
+# Issue #12: Exclude demo crates from default build. puzzle-sandbox-demo stays
+# because CI security tests use it. puzzle-phase2-demo is only needed for
+# demo_attestation.sh and release builds (cargo build -p puzzle-phase2-demo).
+default-members = [
+    "crates/puzzled",
+    "crates/puzzlectl",
+    "crates/puzzled-types",
+    "crates/puzzle-proxy",
+    "crates/puzzle-hook",
+    "crates/puzzle-init",
+    "crates/puzzle-sandbox-demo",
+]
+
+[workspace.package]
+rust-version = "1.75"
+repository = "https://github.com/LobsterTrap/PuzzlePod"
+
+# Edge-optimized release profile: target puzzled < 5MB
+[profile.release]
+opt-level = "s"
+lto = true
+strip = true
+panic = "abort"
+codegen-units = 1
+
+# Standard release profile (data center)
+[profile.release-full]
+inherits = "release"
+opt-level = 2
+strip = false
+panic = "unwind"
+
+[workspace.lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(libseccomp_v2_5)'] }
+
+[workspace.dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["full"] }
+anyhow = "1"
+thiserror = "2"
+zbus = "5"

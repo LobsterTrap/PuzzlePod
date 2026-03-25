@@ -1,0 +1,35 @@
+[Unit]
+Description=PuzzlePod Agent Process (%i)
+After=puzzled.service
+# M-sd9: Intentionally BindsTo instead of PRD's PartOf — ensures agent stops when puzzled stops
+BindsTo=puzzled.service
+Slice=puzzle.slice
+
+[Service]
+Type=simple
+# puzzled manages the actual process lifecycle via clone3();
+# this unit is for systemd resource accounting and dependency tracking.
+# V37: /bin/true is intentional — puzzled manages process lifecycle via clone3().
+# This unit exists for systemd resource accounting and cgroup delegation only.
+# Direct `systemctl start puzzle@foo` without puzzled is a no-op by design.
+ExecStart=/bin/true
+RemainAfterExit=yes
+
+# Delegate cgroup control to puzzled
+Delegate=yes
+
+# Q7: Defense-in-depth hardening for the systemd scope. Primary containment
+# is via clone3/namespaces/Landlock/seccomp, but these directives provide an
+# additional layer if the agent escapes its namespace.
+ProtectKernelModules=yes
+ProtectKernelTunables=yes
+RestrictSUIDSGID=yes
+ProtectClock=yes
+
+# M-sd4: Safety-net resource limits for individual agent processes
+MemoryMax=2G
+CPUQuota=200%
+TasksMax=128
+
+# T45: No [Install] section — this template unit is started programmatically
+# by puzzled via clone3() for resource accounting, not enabled via systemctl.

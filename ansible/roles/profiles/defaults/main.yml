@@ -1,0 +1,6 @@
+---
+# Default variables for profiles role
+
+puzzled_profiles_dir: /etc/puzzled/profiles
+puzzled_profiles_src: "{{ playbook_dir }}/../policies/profiles/"
+puzzled_profiles_list: []  # Empty = deploy all from src directory

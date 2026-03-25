@@ -1,0 +1,73 @@
+# puzzled-user.service -- systemd user unit for rootless puzzled
+#
+# Install:  mkdir -p ~/.config/systemd/user && cp puzzled-user.service ~/.config/systemd/user/puzzled.service
+# Enable:   systemctl --user enable --now puzzled
+# Status:   systemctl --user status puzzled
+# Logs:     journalctl --user -u puzzled -f
+#
+# puzzled auto-detects user mode (non-root UID) and uses:
+#   - D-Bus session bus
+#   - ~/.config/puzzled/ for config, profiles, policies
+#   - ~/.local/share/puzzled/ for branches, audit, trust data
+#   - $XDG_RUNTIME_DIR/puzzled/ for runtime state
+#
+# Note: Edit ExecStart and ExecReload if puzzled/puzzlectl are not
+#   installed to /usr/bin (e.g., ExecStart=%h/.cargo/bin/puzzled).
+#
+# Rootless degradation: BPF LSM disabled, fanotify disabled,
+# XFS project quotas unavailable, fuse-overlayfs instead of kernel OverlayFS.
+# Landlock, seccomp, OPA/Rego, and audit chain work fully.
+
+[Unit]
+Description=PuzzlePod Governance Daemon (user instance)
+After=dbus.service
+
+[Service]
+Type=notify
+NotifyAccess=main
+ExecStart=/usr/bin/puzzled
+ExecReload=/usr/bin/puzzlectl policy reload
+Restart=on-failure
+RestartSec=5s
+StartLimitBurst=5
+StartLimitIntervalSec=60
+
+# Watchdog disabled for user/dev mode (set watchdog_timeout_secs > 0 in
+# puzzled.conf and uncomment WatchdogSec to enable).
+# WatchdogSec=30s
+
+# Automatic directory management (XDG-compliant for user units)
+RuntimeDirectory=puzzled
+StateDirectory=puzzled
+ConfigurationDirectory=puzzled
+
+# Security hardening (subset that works in user units)
+# ProtectHome is intentionally omitted: user-mode puzzled stores state under
+# $HOME (managed via StateDirectory/ConfigurationDirectory). The system unit
+# uses ProtectHome=read-only because it writes to /var/lib/puzzled instead.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ReadWritePaths=%h/.local/share/puzzled %h/.config/puzzled
+# ProtectControlGroups=no: user-mode puzzled may operate on delegated cgroup
+# subtrees. The system unit also uses ProtectControlGroups=no.
+ProtectControlGroups=no
+ProtectKernelTunables=true
+ProtectKernelModules=true
+RestrictSUIDSGID=true
+LockPersonality=true
+RestrictRealtime=true
+ProtectHostname=true
+UMask=0077
+CapabilityBoundingSet=
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+SystemCallArchitectures=native
+SystemCallFilter=~@clock @cpu-emulation @debug @module @obsolete @raw-io @reboot @swap @resources
+MemoryDenyWriteExecute=true
+
+# Resource limits (user-mode, lower than system instance)
+MemoryMax=256M
+TasksMax=64
+
+[Install]
+WantedBy=default.target

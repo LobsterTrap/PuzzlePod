@@ -1,0 +1,79 @@
+[Unit]
+Description=PuzzlePod Governance Daemon
+Documentation=man:puzzled(8)
+After=dbus.service
+Requires=dbus.service
+# M18: SELinux is defense-in-depth, not mandatory. Using ConditionSecurity
+# would prevent puzzled from starting on non-SELinux systems. Operators can
+# add ConditionSecurity=selinux in a drop-in override if desired.
+# ConditionSecurity=selinux
+
+[Service]
+Type=notify
+ExecStart=/usr/bin/puzzled
+# M-sd1: Reload governance policies without full daemon restart
+ExecReload=/usr/bin/puzzlectl policy reload
+Restart=on-failure
+RestartSec=5s
+
+# Watchdog — puzzled must send sd_notify(WATCHDOG=1) within this interval
+WatchdogSec=30s
+
+# Security hardening
+# H-27: Must be false for SELinux domain transitions (puzzlepod_t requires exec-based transition)
+NoNewPrivileges=false
+# ProtectSystem=strict makes the entire filesystem tree read-only except for
+# paths listed in ReadWritePaths=. This means branch commits that write to
+# base paths outside /var/lib/puzzled will fail with EROFS. This is intentional
+# hardening — do NOT weaken it to "full" or remove it. Instead, operators whose
+# agents commit to base paths outside /var/lib/puzzled must add those paths via
+# a drop-in override:
+#   [Service]
+#   ReadWritePaths=/var/lib/puzzled /sys/fs/cgroup /path/to/agent/base
+ProtectSystem=strict
+# U42: Restrictive file creation mask — files created by puzzled are not world-readable
+UMask=0077
+# M-sd5: read-only allows agents with /home base paths while preventing writes
+ProtectHome=read-only
+PrivateTmp=yes
+ProtectKernelModules=yes
+ProtectKernelTunables=yes
+ProtectControlGroups=no
+# /sys/fs/cgroup is needed for cgroup v2 writes (creating scopes, setting limits, freeze/thaw)
+# M-sd6: /run/puzzled needed for runtime state (pidfiles, sockets)
+ReadWritePaths=/var/lib/puzzled /sys/fs/cgroup /run/puzzled
+# CAP_NET_ADMIN: needed for veth/nftables setup in Gated/Monitored network modes
+# M5: CAP_AUDIT_WRITE: needed to write audit events via netlink (NETLINK_AUDIT)
+# M-sd7: CAP_SYS_PTRACE removed — not needed; agents are monitored via pidfd, not ptrace
+CapabilityBoundingSet=CAP_SYS_ADMIN CAP_DAC_OVERRIDE CAP_SETUID CAP_SETGID CAP_NET_ADMIN CAP_AUDIT_WRITE
+# M-sd8: CAP_DAC_OVERRIDE needed for managing branch files owned by different UIDs
+# T43: CAP_SYS_ADMIN required for mount namespaces, OverlayFS, cgroups, and BPF.
+# When kernel >= 5.8 is minimum, consider replacing with CAP_BPF + CAP_PERFMON.
+# V10: AmbientCapabilities must match CapabilityBoundingSet so puzzled inherits all needed caps
+AmbientCapabilities=CAP_SYS_ADMIN CAP_DAC_OVERRIDE CAP_SETUID CAP_SETGID CAP_NET_ADMIN CAP_AUDIT_WRITE
+# M-sd3: Denylist approach (~ prefix) is used instead of allowlist because puzzled
+# needs a broad syscall surface (clone3, mount, pidfd_*, seccomp, bpf, etc.) and
+# an allowlist would be fragile across kernel versions. The denylist blocks known-dangerous
+# syscall groups while allowing everything else.
+SystemCallFilter=~@clock @cpu-emulation @debug @module @obsolete @raw-io @reboot @swap @resources
+# L-sd1: Additional hardening
+LockPersonality=true
+MemoryDenyWriteExecute=true
+# N9: Additional systemd hardening directives
+# Note: PrivateDevices=yes and RestrictNamespaces= are NOT added because
+# puzzled needs device access and namespace creation (clone3, setns).
+ProtectClock=yes
+ProtectHostname=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+
+# Resource limits for puzzled itself
+MemoryMax=256M
+TasksMax=128
+# §3.4 G30: Allow unlimited mlock for SecureRegion credential storage
+LimitMEMLOCK=infinity
+# §3.4 G30: Protect puzzled from OOM killer — credential proxy must survive memory pressure
+OOMScoreAdjust=-900
+
+[Install]
+WantedBy=multi-user.target

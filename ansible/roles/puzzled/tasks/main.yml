@@ -1,0 +1,76 @@
+---
+# Install and configure puzzled
+
+- name: Install puzzled packages
+  ansible.builtin.dnf:
+    name: "{{ puzzled_packages }}"
+    state: present
+
+- name: Create puzzled directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  loop:
+    - "{{ puzzled_branch_root }}"
+    - "{{ puzzled_profiles_dir }}"
+    - "{{ puzzled_policies_dir }}"
+    - "{{ puzzled_branch_root }}/wal"
+    - "{{ puzzled_branch_root }}/manifests"
+    - "{{ puzzled_branch_root }}/audit"
+
+- name: Deploy puzzled configuration
+  ansible.builtin.template:
+    src: puzzled.conf.j2
+    dest: /etc/puzzled/puzzled.conf
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart puzzled
+
+- name: Deploy D-Bus policy
+  ansible.builtin.copy:
+    src: org.lobstertrap.PuzzlePod1.conf
+    dest: /etc/dbus-1/system.d/org.lobstertrap.PuzzlePod1.conf
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Reload dbus
+
+- name: Install SELinux policy module
+  ansible.builtin.command:
+    cmd: semodule -i /usr/share/selinux/packages/puzzled.pp
+  when: puzzled_selinux_enabled | bool
+  changed_when: false
+
+- name: Set up XFS partition for branch storage
+  when: puzzled_fs_type == "xfs"
+  block:
+    - name: Check if branch_root is on XFS
+      ansible.builtin.command:
+        cmd: "stat -f -c %T {{ puzzled_branch_root }}"
+      register: fs_check
+      changed_when: false
+      failed_when: false
+
+    - name: Warn if not on XFS
+      ansible.builtin.debug:
+        msg: "Branch root is not on XFS ({{ fs_check.stdout }}). XFS project quotas will not be available."
+      when: fs_check.stdout != "xfs"
+
+- name: Enable and start puzzled
+  ansible.builtin.systemd:
+    name: puzzled
+    enabled: "{{ puzzled_service_enabled }}"
+    state: "{{ 'started' if puzzled_service_started else 'stopped' }}"
+    daemon_reload: true
+
+- name: Verify puzzled is running
+  ansible.builtin.command:
+    cmd: puzzlectl branch list --bus={{ puzzled_bus_type }}
+  register: verify_result
+  changed_when: false
+  failed_when: verify_result.rc != 0
+  when: puzzled_service_started | bool

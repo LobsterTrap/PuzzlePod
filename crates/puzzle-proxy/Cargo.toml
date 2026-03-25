@@ -1,0 +1,47 @@
+[package]
+name = "puzzle-proxy"
+version = "0.1.0"
+edition = "2021"
+description = "HTTP proxy for PuzzlePod network gating"
+license = "Apache-2.0"
+
+[lib]
+name = "puzzle_proxy"
+path = "src/lib.rs"
+
+[dependencies]
+puzzled-types = { path = "../puzzled-types" }
+tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tracing = "0.1"
+hyper = { version = "1", features = ["http1", "server", "client"] }
+hyper-util = { version = "0.1", features = ["tokio", "http1", "server-auto", "client-legacy"] }
+http-body = "1"
+http-body-util = "0.1"
+bytes = "1"
+rcgen = "0.13"
+rustls = "0.23"
+tokio-rustls = "0.26"
+rustls-pemfile = "2"
+webpki-roots = "0.26"
+base64 = "0.22"
+chrono = { version = "0.4", features = ["serde"] }
+regex = "1"
+sha2 = "0.10"
+hex = "0.4"
+serde_yaml = "0.9"
+maxminddb = "0.27"
+hyper-rustls = { version = "0.27", features = ["http1", "tls12", "webpki-tokio"] }
+aes-gcm = "0.10"
+hkdf = "0.12"
+getrandom = "0.2"
+urlencoding = "2"
+zeroize = { version = "1", features = ["derive", "serde"] }
+flate2 = "1"
+thiserror = "2"
+libc = "0.2"
+argon2 = "0.5"
+
+[dev-dependencies]
+tempfile = "3"

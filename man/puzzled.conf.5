@@ -1,0 +1,174 @@
+.\" puzzled.conf(5) man page
+.\"
+.\" Originally designed at Red Hat LLC by Francis Chow (@openchow) and Adam Miller (@maxamillion)
+.\" Licensed under Apache-2.0
+.\"
+.TH PUZZLED.CONF 5 "2026-03-07" "puzzled 0.1.0" "File Formats"
+.SH NAME
+puzzled.conf \- configuration file for the PuzzlePod governance daemon
+.SH SYNOPSIS
+.I /etc/puzzled/puzzled.conf
+.SH DESCRIPTION
+The
+.I puzzled.conf
+file configures the
+.BR puzzled (8)
+governance daemon. The file uses YAML syntax. Each configuration directive
+is specified as a key\-value pair.
+.PP
+Changes to this file take effect on daemon restart. Some settings (profiles
+and policies directories) can be reloaded at runtime by sending SIGHUP to
+the daemon or by running
+.BR "puzzlectl policy reload" .
+.SH DIRECTIVES
+.TP
+.BI branch_root " path"
+Root directory for branch storage. Contains OverlayFS upper layers, work
+directories, WAL journals, and branch metadata. Must be on an XFS
+filesystem for project quota support.
+.br
+Default:
+.I /var/lib/puzzled/branches
+.TP
+.BI profiles_dir " path"
+Directory containing agent profile YAML files. Each
+.I .yaml
+file in this directory defines an agent profile that can be referenced by
+name when creating branches. See
+.BR agent\-profile (5).
+.br
+Default:
+.I /etc/puzzled/profiles
+.TP
+.BI policies_dir " path"
+Directory containing OPA/Rego policy files. These policies are compiled to
+Wasm and evaluated at commit time to determine whether an agent's changes
+should be applied.
+.br
+Default:
+.I /etc/puzzled/policies
+.TP
+.BI max_branches " integer"
+Maximum number of concurrent active branches. Each branch consumes memory
+for OverlayFS metadata, WAL state, and monitoring file descriptors. Set
+lower on resource\-constrained edge devices.
+.br
+Default:
+.B 64
+.br
+Range: 1\-256
+.TP
+.BI watchdog_timeout_secs " integer"
+systemd watchdog timeout in seconds.
+.B puzzled
+sends
+.B sd_notify(WATCHDOG=1)
+at half this interval. Set to 0 to disable the watchdog. This value must
+match the
+.B WatchdogSec
+directive in the
+.B puzzled.service
+systemd unit file.
+.br
+Default:
+.B 30
+.br
+Range: 0\-300
+.TP
+.BI bus_type " string"
+D\-Bus bus type for the puzzled management interface.
+.RS
+.TP
+.B system
+Register on the system bus (production). Requires D\-Bus policy
+configuration for access control.
+.TP
+.B session
+Register on the session bus (development and testing). No root
+privileges required.
+.RE
+.IP
+Default:
+.B system
+.TP
+.BI fs_type " string"
+Filesystem type for branch storage. Determines quota support and
+performance characteristics.
+.RS
+.TP
+.B xfs
+Recommended. Supports project quotas for per\-branch storage and inode
+limits.
+.TP
+.B ext4
+Supported with limited quota capabilities.
+.TP
+.B btrfs
+Supported. Can use subvolumes for branch isolation.
+.RE
+.IP
+Default:
+.B xfs
+.TP
+.BI log_level " string"
+Logging verbosity level. One of:
+.BR trace ", " debug ", " info ", " warn ", " error .
+Can be overridden by the
+.B \-\-log\-level
+command\-line option.
+.br
+Default:
+.B info
+.TP
+.BI bpf_obj_path " path"
+Path to compiled BPF object files for the BPF LSM programs used for exec
+counting and rate limiting. These are loaded into the kernel at branch
+creation time.
+.br
+Default:
+.I /usr/lib/puzzled/bpf/
+.SH EXAMPLE
+.PP
+.RS
+.nf
+# puzzled configuration
+branch_root: /var/lib/puzzled/branches
+profiles_dir: /etc/puzzled/profiles
+policies_dir: /etc/puzzled/policies
+max_branches: 64
+bus_type: system
+fs_type: xfs
+log_level: info
+watchdog_timeout_secs: 30
+bpf_obj_path: /usr/lib/puzzled/bpf/
+.fi
+.RE
+.SH EDGE DEVICE CONFIGURATION
+For resource\-constrained edge devices (4GB+ RAM), reduce resource usage:
+.PP
+.RS
+.nf
+branch_root: /var/lib/puzzled/branches
+profiles_dir: /etc/puzzled/profiles
+policies_dir: /etc/puzzled/policies
+max_branches: 8
+bus_type: system
+fs_type: xfs
+log_level: warn
+watchdog_timeout_secs: 60
+.fi
+.RE
+.SH FILES
+.TP
+.I /etc/puzzled/puzzled.conf
+Default configuration file location.
+.TP
+.I /var/lib/puzzled/branches/
+Default branch storage root.
+.SH SEE ALSO
+.BR puzzled (8),
+.BR puzzlectl (1),
+.BR agent\-profile (5),
+.BR systemd.service (5)
+.SH AUTHORS
+Francis Chow and the PuzzlePod contributors.

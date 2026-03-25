@@ -1,0 +1,219 @@
+.\" puzzlectl(1) man page
+.\"
+.\" Originally designed at Red Hat LLC by Francis Chow (@openchow) and Adam Miller (@maxamillion)
+.\" Licensed under Apache-2.0
+.\"
+.TH PUZZLECTL 1 "2026-03-07" "puzzlectl 0.1.0" "User Commands"
+.SH NAME
+puzzlectl \- command\-line management tool for PuzzlePod
+.SH SYNOPSIS
+.B puzzlectl
+[\fIGLOBAL OPTIONS\fR]
+.I COMMAND
+.I SUBCOMMAND
+[\fIOPTIONS\fR]
+[\fIARGS\fR]
+.SH DESCRIPTION
+.B puzzlectl
+is the command\-line interface for managing PuzzlePod agent sandboxes,
+branches, profiles, policies, and audit events. It communicates with the
+.BR puzzled (8)
+governance daemon via D\-Bus.
+.PP
+All output is human\-readable by default. Use
+.B \-\-output=json
+for machine\-parseable JSON output.
+.SH GLOBAL OPTIONS
+.TP
+.BI \-\-output " format"
+Output format. One of:
+.BR text " (default), " json .
+.TP
+.BI \-\-bus\-type " type"
+D\-Bus bus type. One of:
+.BR system " (default), " session .
+.TP
+.B \-\-verbose
+Enable verbose output.
+.TP
+.B \-\-help
+Print help information.
+.TP
+.B \-\-version
+Print version information.
+.SH COMMANDS
+.SS branch \- Branch management
+.TP
+.B puzzlectl branch create \fB\-\-profile\fR \fIname\fR \fB\-\-base\-path\fR \fIpath\fR [\fB\-\-command\fR \fIcmd\fR]
+Create a new agent branch. The agent process runs in an isolated sandbox
+with an OverlayFS upper layer, constrained by the specified profile.
+Returns the branch ID.
+.TP
+.B puzzlectl branch list
+List all active and recently completed branches. Displays branch ID,
+profile, status, creation time, and agent PID.
+.TP
+.B puzzlectl branch inspect \fIbranch\-id\fR
+Display detailed information about a branch, including profile settings,
+resource usage, namespace IDs, and changeset summary.
+.TP
+.B puzzlectl branch approve \fIbranch\-id\fR
+Approve a branch for commit. Triggers OPA/Rego policy evaluation; if the
+policy passes, the branch changes are committed to the base filesystem
+via the WAL\-based crash\-safe procedure.
+.TP
+.B puzzlectl branch reject \fIbranch\-id\fR
+Reject a branch. The OverlayFS upper layer is discarded with zero residue.
+The agent process is terminated.
+.TP
+.B puzzlectl branch rollback \fIbranch\-id\fR
+Roll back a branch, discarding all changes. Equivalent to reject for
+active branches. For committed branches, reverses the commit using the
+WAL journal.
+.TP
+.B puzzlectl branch diff \fIbranch\-id\fR
+Display the changeset diff for a branch. Lists all files created, modified,
+or deleted in the OverlayFS upper layer, with checksums and sizes.
+.SS agent \- Agent process management
+.TP
+.B puzzlectl agent list
+List all running agent processes with their branch ID, PID, profile,
+uptime, and resource usage.
+.TP
+.B puzzlectl agent info \fIbranch\-id\fR
+Display detailed information about an agent process, including its PID
+namespace, cgroup path, Landlock ruleset, seccomp filter status, and
+behavioral monitoring state.
+.TP
+.B puzzlectl agent kill \fIbranch\-id\fR
+Terminate the agent process associated with the specified branch. The
+process is killed via
+.BR pidfd_send_signal (2),
+and the PID namespace ensures all child processes are cleaned up.
+.SS profile \- Profile management
+.TP
+.B puzzlectl profile list
+List all available agent profiles with their name, description, network
+mode, and resource limits summary.
+.TP
+.B puzzlectl profile show \fIname\fR
+Display the full YAML content of a profile.
+.TP
+.B puzzlectl profile validate \fIpath\fR
+Validate a profile YAML file against the JSON schema. Reports any errors
+in the profile structure or field values.
+.TP
+.B puzzlectl profile test \fIname\fR \fB\-\-simulate\fR \fIscenario\fR
+Test a profile against a simulated scenario. The scenario describes a set
+of filesystem operations, exec calls, and network connections. The command
+reports which operations would be allowed or denied.
+.SS policy \- Policy management
+.TP
+.B puzzlectl policy reload
+Reload OPA/Rego policies from the policies directory. Active branches
+are not affected; new policy takes effect on the next commit evaluation.
+.TP
+.B puzzlectl policy test \fB\-\-input\fR \fIpath\fR
+Test OPA/Rego policies against a synthetic input file. The input file
+contains a JSON representation of a changeset. Reports the policy
+decision and any violations.
+.SS audit \- Audit event management
+.TP
+.B puzzlectl audit list [\fB\-\-branch\fR \fIid\fR] [\fB\-\-since\fR \fItimestamp\fR] [\fB\-\-until\fR \fItimestamp\fR]
+List audit events, optionally filtered by branch ID and time range.
+Displays event type, timestamp, branch, and summary.
+.TP
+.B puzzlectl audit export \fB\-\-format\fR \fIfmt\fR [\fB\-\-output\fR \fIpath\fR]
+Export audit events in the specified format. Supported formats:
+.BR json ", " csv ", " cel .
+Writes to stdout by default, or to the specified output file.
+.TP
+.B puzzlectl audit verify [\fB\-\-branch\fR \fIid\fR]
+Verify the integrity of audit event signatures using IMA measurements.
+Reports any tampered or missing events.
+.SH EXAMPLES
+Create a branch with the standard profile:
+.PP
+.RS
+.nf
+$ puzzlectl branch create \-\-profile standard \-\-base\-path /home/user/project
+Branch created: br\-a1b2c3d4
+.fi
+.RE
+.PP
+List all active branches:
+.PP
+.RS
+.nf
+$ puzzlectl branch list
+ID            PROFILE     STATUS   CREATED              PID
+br\-a1b2c3d4   standard    active   2026\-03\-07T10:00:00  12345
+br\-e5f6g7h8   restricted  active   2026\-03\-07T09:30:00  12300
+.fi
+.RE
+.PP
+Inspect a branch diff:
+.PP
+.RS
+.nf
+$ puzzlectl branch diff br\-a1b2c3d4
+M  src/main.rs        (1024 bytes, sha256:abc123...)
+A  src/new_module.rs  (512 bytes, sha256:def456...)
+D  src/old_file.rs
+.fi
+.RE
+.PP
+Approve and commit a branch:
+.PP
+.RS
+.nf
+$ puzzlectl branch approve br\-a1b2c3d4
+Policy evaluation: PASS (0 violations)
+Branch br\-a1b2c3d4 committed successfully.
+.fi
+.RE
+.PP
+Validate a custom profile:
+.PP
+.RS
+.nf
+$ puzzlectl profile validate /etc/puzzled/profiles/my\-agent.yaml
+Profile validation: OK
+.fi
+.RE
+.PP
+Export audit events as JSON:
+.PP
+.RS
+.nf
+$ puzzlectl audit export \-\-format json \-\-output /tmp/audit.json
+Exported 142 events to /tmp/audit.json
+.fi
+.RE
+.SH EXIT STATUS
+.TP
+.B 0
+Command completed successfully.
+.TP
+.B 1
+General error (D\-Bus communication failure, invalid arguments).
+.TP
+.B 2
+Policy violation (commit rejected by governance policy).
+.TP
+.B 3
+Branch not found.
+.SH FILES
+.TP
+.I /etc/puzzled/profiles/
+Agent profile YAML files. See
+.BR agent\-profile (5).
+.TP
+.I /etc/puzzled/policies/
+OPA/Rego policy files.
+.SH SEE ALSO
+.BR puzzled (8),
+.BR puzzled.conf (5),
+.BR agent\-profile (5)
+.SH AUTHORS
+Francis Chow and the PuzzlePod contributors.

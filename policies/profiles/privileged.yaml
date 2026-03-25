@@ -1,0 +1,114 @@
+name: privileged
+description: >
+  Broad access profile for highly trusted agents.
+  Wide filesystem access, monitored network, large quotas.
+
+filesystem:
+  read_allowlist:
+    - /usr
+    - /etc
+    - /var/log
+  write_allowlist:
+    - /tmp/agent
+  denylist:
+    - /etc/shadow
+    - /etc/gshadow
+    - /root/.ssh/id_*
+    - /etc/sudoers
+    - /root/.gnupg
+    - /etc/security
+  # H87: Block reading of privilege-escalation and auth config directories
+  read_denylist:
+    - /etc/sudoers.d
+    - /etc/pam.d
+    - /etc/ssh
+  # K66: Block writing to sensitive paths — mirrors denylist entries
+  write_denylist:
+    - /etc/shadow
+    - /etc/gshadow
+    - /root/.ssh
+    - /etc/sudoers
+    - /root/.gnupg
+    - /etc/security
+    - /etc/sudoers.d
+    - /etc/pam.d
+    - /etc/ssh
+
+exec_allowlist:
+  - /usr/bin/*
+  - /usr/sbin/*
+  - /usr/local/bin/*
+
+# G31: Block dangerous executables that could escape containment
+# J62: Extended denylist to cover additional escape vectors
+exec_denylist:
+  - nsenter
+  - unshare
+  - chroot
+  - mount
+  - umount
+  - pivot_root
+  - strace
+  - ltrace
+  - gdb
+  - capsh
+  - setcap
+  - modprobe
+  - insmod
+  - kexec
+  - bpftool
+  # §3.4 G31: Netfilter binaries
+  - nft
+  - iptables
+  - ip6tables
+  - ebtables
+  - xtables-legacy-multi
+  - xtables-nft-multi
+  - dd
+  - losetup
+  - dmsetup
+  - ip
+  - iptables
+  - nft
+  - nc
+  - ncat
+  - socat
+  # N18: Additional privilege-escalation and container-escape vectors
+  - pkexec
+  - su
+  - sudo
+  - passwd
+  - newgrp
+  - sg
+  - podman
+  - runc
+  - criu
+  - flatpak
+
+resource_limits:
+  memory_bytes: 2147483648     # 2 GiB
+  cpu_shares: 200
+  io_weight: 200
+  max_pids: 256
+  storage_quota_mb: 4096
+  inode_quota: 100000
+
+# N19: Gated mode ensures all network access goes through the proxy for
+# logging and credential injection, even for privileged agents.
+# R3: allowed_domains ["*"] with Gated mode means all traffic is proxied for
+# logging and credential injection, but no domain filtering is applied.
+# This is intentional for highly trusted agents that need unrestricted
+# network access while still maintaining an auditable proxy trail.
+network:
+  mode: Gated
+  allowed_domains:
+    - "*"
+
+behavioral:
+  max_deletions: 200
+  max_reads_per_minute: 5000
+  credential_access_alert: true
+
+fail_mode: FailClosed
+seccomp_mode: Permissive
+allow_symlinks: true

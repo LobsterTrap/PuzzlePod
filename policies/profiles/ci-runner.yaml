@@ -1,0 +1,116 @@
+name: ci-runner
+description: >
+  Profile for continuous integration build agents. Gated network access to
+  package registries and container image repositories. Supports multi-language
+  builds with make, cargo, npm, docker, and Go toolchains.
+
+filesystem:
+  read_allowlist:
+    - /usr/share
+    - /usr/lib
+    - /usr/lib64
+    - /usr/include
+    - /etc/alternatives
+    - /etc/ld.so.cache
+    - /etc/ld.so.conf.d
+  write_allowlist:
+    - /tmp
+  denylist:
+    - /etc/shadow
+    - /etc/gshadow
+    - /etc/ssh
+    - /root/.ssh
+    - /etc/sudoers
+    - /etc/sudoers.d
+  # N15: Defense-in-depth read/write denylists
+  read_denylist:
+    - /etc/shadow
+    - /etc/gshadow
+    - /etc/sudoers
+    - /etc/sudoers.d
+  write_denylist:
+    - /etc
+    - /usr
+    - /boot
+    - /sbin
+    - /bin
+    - /lib
+    - /lib64
+    - /var/log
+    - /root
+
+# H96: Removed /usr/bin/docker — use podman instead for container operations
+exec_allowlist:
+  - /usr/bin/make
+  - /usr/bin/cargo
+  - /usr/bin/rustc
+  - /usr/bin/npm
+  - /usr/bin/node
+  - /usr/bin/go
+  - /usr/bin/gcc
+  - /usr/bin/g++
+  - /usr/bin/git
+  - /usr/bin/cat
+  - /usr/bin/ls
+  - /usr/bin/grep
+  - /usr/bin/find
+  - /usr/bin/wc
+  - /usr/bin/sort
+  - /usr/bin/sed
+  - /usr/bin/awk
+  - /usr/bin/tar
+  - /usr/bin/gzip
+
+# T24: Expanded exec_denylist — privilege escalation + exfiltration vectors
+exec_denylist:
+  - nsenter
+  - unshare
+  - chroot
+  - mount
+  - strace
+  - gdb
+  - docker
+  - su
+  - sudo
+  - pkexec
+  - dd
+  - nc
+  - ncat
+  - socat
+  - capsh
+  - setcap
+  - modprobe
+  - insmod
+  - kexec
+  - bpftool
+
+resource_limits:
+  memory_bytes: 1073741824     # 1 GiB
+  cpu_shares: 150
+  io_weight: 150
+  max_pids: 128
+  storage_quota_mb: 2048
+  inode_quota: 50000
+
+network:
+  mode: Gated
+  allowed_domains:
+    - registry.npmjs.org
+    - pypi.org
+    - files.pythonhosted.org
+    - crates.io
+    - static.crates.io
+    - registry-1.docker.io
+    - production.cloudflare.docker.com
+    - proxy.golang.org
+    - sum.golang.org
+
+behavioral:
+  max_deletions: 100
+  max_reads_per_minute: 5000
+  credential_access_alert: true
+
+seccomp_mode: Permissive
+allow_symlinks: false
+
+fail_mode: FailClosed

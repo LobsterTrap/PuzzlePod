@@ -1,0 +1,100 @@
+name: infrastructure-auditor
+description: >
+  Profile for infrastructure security auditing agents. Network is fully
+  blocked to prevent data exfiltration. Read access to system configuration
+  and logs. Supports Lynis, chkrootkit, and rkhunter for host-level
+  security assessment.
+
+filesystem:
+  read_allowlist:
+    - /usr/share
+    - /usr/lib
+    - /usr/lib64
+    - /etc
+    - /var/log
+  write_allowlist: []
+  denylist:
+    - /etc/shadow
+    - /etc/gshadow
+    - /root/.ssh/id_*
+    # J66: Additional sensitive paths
+    - /etc/ssh/ssh_host_*_key
+    - /etc/sudoers
+    - /etc/sudoers.d
+    - /etc/pam.d
+    - /etc/security
+    - /etc/krb5.keytab
+  # N15: Defense-in-depth read/write denylists
+  read_denylist:
+    - /etc/shadow
+    - /etc/gshadow
+    - /etc/sudoers
+    - /etc/sudoers.d
+  write_denylist:
+    - /etc
+    - /usr
+    - /boot
+    - /sbin
+    - /bin
+    - /lib
+    - /lib64
+    - /var/log
+    - /root
+
+exec_allowlist:
+  - /usr/bin/lynis
+  - /usr/bin/chkrootkit
+  - /usr/bin/rkhunter
+  - /usr/bin/cat
+  - /usr/bin/ls
+  - /usr/bin/head
+  - /usr/bin/tail
+  - /usr/bin/grep
+  - /usr/bin/find
+  - /usr/bin/wc
+  - /usr/bin/sha256sum
+  - /usr/bin/stat
+
+# T24: Expanded exec_denylist — privilege escalation + exfiltration vectors
+exec_denylist:
+  - nsenter
+  - unshare
+  - chroot
+  - mount
+  - strace
+  - gdb
+  - su
+  - sudo
+  - pkexec
+  - dd
+  - nc
+  - ncat
+  - socat
+  - capsh
+  - setcap
+  - modprobe
+  - insmod
+  - kexec
+  - bpftool
+
+resource_limits:
+  memory_bytes: 268435456      # 256 MiB
+  cpu_shares: 80
+  io_weight: 80
+  max_pids: 32
+  storage_quota_mb: 512
+  inode_quota: 5000
+
+network:
+  mode: Blocked
+  allowed_domains: []
+
+behavioral:
+  max_deletions: 5
+  max_reads_per_minute: 5000
+  credential_access_alert: true
+
+seccomp_mode: Permissive
+allow_symlinks: false
+
+fail_mode: FailClosed

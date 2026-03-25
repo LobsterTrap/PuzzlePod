@@ -1,0 +1,352 @@
+.\" puzzlepod-profile(5) man page
+.\"
+.\" Originally designed at Red Hat LLC by Francis Chow (@openchow) and Adam Miller (@maxamillion)
+.\" Licensed under Apache-2.0
+.\"
+.TH PUZZLEPOD\-PROFILE 5 "2026-03-07" "puzzled 0.1.0" "File Formats"
+.SH NAME
+puzzlepod\-profile \- agent profile YAML format for PuzzlePod
+.SH SYNOPSIS
+.I /etc/puzzled/profiles/*.yaml
+.SH DESCRIPTION
+Agent profile files define per\-agent access control for sandboxes created
+by the
+.BR puzzled (8)
+governance daemon. Each profile is a YAML file placed in the profiles
+directory (default:
+.IR /etc/puzzled/profiles/ ).
+.PP
+When a branch is created with
+.BR "puzzlectl branch create \-\-profile" " \fIname\fR" ,
+the daemon loads the corresponding
+.I name.yaml
+file and configures kernel enforcement mechanisms accordingly.
+.SH FIELDS
+.SS Top\-Level Fields
+.TP
+.BI name " string"
+.RI ( required )
+Unique name for the profile. Must match the filename (without
+.I .yaml
+extension). Used as the
+.B \-\-profile
+argument to
+.BR "puzzlectl branch create" .
+.TP
+.BI description " string"
+.RI ( optional )
+Human\-readable description of the profile's purpose and security posture.
+.TP
+.BI fail_mode " string"
+.RI ( optional )
+Behavior when the governance daemon cannot evaluate policy. One of:
+.RS
+.TP
+.B fail\-closed
+Deny the operation. This is the default and recommended setting.
+.TP
+.B fail\-silent
+Hold the last known safe state. Useful for edge devices where brief
+communication loss is expected.
+.TP
+.B fail\-operational
+Continue with reduced capabilities. For environments requiring continuous
+operation.
+.TP
+.B fail\-safe\-state
+Initiate a controlled stop or return to a defined safe state. For
+safety\-critical deployments (IEC 61508, ISO 26262).
+.RE
+.IP
+Default:
+.B fail\-closed
+.SS filesystem
+Filesystem access control. Defines which paths the agent can read, write,
+and which paths are always denied.
+.TP
+.BI read_allowlist " list"
+List of filesystem paths the agent is allowed to read. These are applied
+as Landlock rules with read access. Paths are recursive \(em granting read
+to
+.I /usr/share
+permits reading any file under that directory.
+.TP
+.BI write_allowlist " list"
+List of filesystem paths the agent is allowed to write. Applied as
+Landlock rules with write access. In most profiles, this is empty because
+all writes go to the OverlayFS upper layer (the branch).
+.TP
+.BI denylist " list"
+List of filesystem paths that are always denied, regardless of
+allowlist rules. Takes precedence over allowlists. Use this for sensitive
+paths such as
+.IR /etc/shadow ", " /etc/ssh ", " /root/.ssh .
+.SS exec_allowlist
+List of executable paths the agent is permitted to run via
+.BR execve (2).
+Each
+.BR execve (2)
+call is intercepted by seccomp USER_NOTIF and validated against this list
+by
+.BR puzzled .
+Glob patterns are supported (e.g.,
+.IR /usr/bin/* ).
+.SS resource_limits
+Resource limits enforced via cgroups v2 and XFS project quotas.
+.TP
+.BI memory_bytes " integer"
+Maximum memory in bytes. The kernel OOM killer terminates the agent if
+this limit is exceeded.
+.TP
+.BI cpu_shares " integer"
+CPU shares (cgroup v2 cpu.weight). Relative to other agents. Range: 1\-10000.
+.TP
+.BI io_weight " integer"
+I/O weight (cgroup v2 io.weight). Relative to other agents. Range: 1\-10000.
+.TP
+.BI max_pids " integer"
+Maximum number of processes in the agent's PID namespace (cgroup v2
+pids.max).
+.TP
+.BI storage_quota_mb " integer"
+Maximum storage in megabytes for the OverlayFS upper layer. Enforced via
+XFS project quotas.
+.TP
+.BI inode_quota " integer"
+Maximum number of inodes (files) in the OverlayFS upper layer. Enforced
+via XFS project quotas.
+.SS network
+Network access control.
+.TP
+.BI mode " string"
+Network access mode. One of:
+.RS
+.TP
+.B Blocked
+No network access. The agent runs in an isolated network namespace with
+no interfaces.
+.TP
+.B Gated
+Network access is permitted only to domains listed in
+.BR allowed_domains .
+Connections to other destinations are blocked by nftables rules and
+seccomp USER_NOTIF interception of
+.BR connect (2).
+.TP
+.B Monitored
+All network access is permitted but logged. Connection attempts are
+recorded in the audit log.
+.TP
+.B Unrestricted
+All network access is permitted without logging. Use only for fully
+trusted agents.
+.RE
+.TP
+.BI allowed_domains " list"
+List of domain names the agent is allowed to connect to when
+.B mode
+is set to
+.BR Gated .
+DNS resolution is performed by
+.B puzzled
+and nftables rules are configured for the resolved IP addresses. Ignored
+for other network modes.
+.SS behavioral
+Behavioral monitoring configuration. These triggers use fanotify to
+monitor file access patterns and alert or terminate the agent when
+anomalous behavior is detected.
+.TP
+.BI max_deletions " integer"
+Maximum number of file deletions before triggering an alert. Defends
+against mass deletion attacks from a hallucinating agent.
+.TP
+.BI max_reads_per_minute " integer"
+Maximum file read operations per minute. Defends against data exfiltration
+patterns where an agent rapidly reads many files.
+.TP
+.BI credential_access_alert " boolean"
+If
+.BR true ,
+generate an alert when the agent attempts to read files matching known
+credential patterns (SSH keys, AWS credentials, GPG keyrings, etc.),
+even if the read is denied by Landlock.
+.SH EXAMPLES
+.SS Restricted Profile
+Minimal access for untrusted agents:
+.PP
+.RS
+.nf
+name: restricted
+description: >
+  Minimal access profile for untrusted or experimental agents.
+  No network access, small quotas, narrow filesystem scope.
+
+filesystem:
+  read_allowlist:
+    \- /usr/share
+    \- /usr/lib
+    \- /usr/lib64
+  write_allowlist: []
+  denylist:
+    \- /etc/shadow
+    \- /etc/passwd
+    \- /etc/ssh
+    \- /root
+    \- /home
+
+exec_allowlist:
+  \- /usr/bin/python3
+  \- /usr/bin/cat
+  \- /usr/bin/ls
+  \- /usr/bin/grep
+
+resource_limits:
+  memory_bytes: 268435456
+  cpu_shares: 50
+  io_weight: 50
+  max_pids: 16
+  storage_quota_mb: 256
+  inode_quota: 1000
+
+network:
+  mode: Blocked
+  allowed_domains: []
+
+behavioral:
+  max_deletions: 10
+  max_reads_per_minute: 100
+  credential_access_alert: true
+.fi
+.RE
+.SS Standard Profile
+Project\-scoped access for trusted development agents:
+.PP
+.RS
+.nf
+name: standard
+description: >
+  Standard profile for trusted development agents.
+
+filesystem:
+  read_allowlist:
+    \- /usr/share
+    \- /usr/lib
+    \- /usr/lib64
+    \- /usr/include
+  write_allowlist: []
+  denylist:
+    \- /etc/shadow
+    \- /etc/ssh
+    \- /root/.ssh
+
+exec_allowlist:
+  \- /usr/bin/python3
+  \- /usr/bin/gcc
+  \- /usr/bin/make
+  \- /usr/bin/cargo
+  \- /usr/bin/git
+  \- /usr/bin/curl
+
+resource_limits:
+  memory_bytes: 536870912
+  cpu_shares: 100
+  io_weight: 100
+  max_pids: 64
+  storage_quota_mb: 1024
+  inode_quota: 10000
+
+network:
+  mode: Gated
+  allowed_domains:
+    \- pypi.org
+    \- github.com
+    \- crates.io
+
+behavioral:
+  max_deletions: 50
+  max_reads_per_minute: 1000
+  credential_access_alert: true
+.fi
+.RE
+.SS Safety\-Critical Profile
+For deployments requiring functional safety:
+.PP
+.RS
+.nf
+name: safety\-critical
+
+fail_mode: fail\-safe\-state
+
+filesystem:
+  read_allowlist:
+    \- /usr/share
+    \- /usr/lib
+  write_allowlist: []
+  denylist:
+    \- /etc
+    \- /root
+    \- /home
+
+exec_allowlist:
+  \- /usr/bin/python3
+
+resource_limits:
+  memory_bytes: 134217728
+  cpu_shares: 25
+  io_weight: 25
+  max_pids: 8
+  storage_quota_mb: 64
+  inode_quota: 500
+
+network:
+  mode: Blocked
+  allowed_domains: []
+
+behavioral:
+  max_deletions: 5
+  max_reads_per_minute: 50
+  credential_access_alert: true
+.fi
+.RE
+.SH VALIDATION
+Use
+.B puzzlectl profile validate
+to check a profile against the JSON schema:
+.PP
+.RS
+.nf
+$ puzzlectl profile validate /etc/puzzled/profiles/my\-agent.yaml
+.fi
+.RE
+.PP
+Use
+.B puzzlectl profile test
+to simulate a profile against a test scenario:
+.PP
+.RS
+.nf
+$ puzzlectl profile test my\-agent \-\-simulate read\-write\-test
+.fi
+.RE
+.SH FILES
+.TP
+.I /etc/puzzled/profiles/
+Default directory for profile YAML files.
+.TP
+.I /etc/puzzled/profiles/restricted.yaml
+Built\-in restricted profile.
+.TP
+.I /etc/puzzled/profiles/standard.yaml
+Built\-in standard profile.
+.TP
+.I /etc/puzzled/profiles/privileged.yaml
+Built\-in privileged profile.
+.SH SEE ALSO
+.BR puzzled (8),
+.BR puzzlectl (1),
+.BR puzzled.conf (5),
+.BR landlock (7),
+.BR seccomp (2),
+.BR cgroups (7)
+.SH AUTHORS
+Francis Chow and the PuzzlePod contributors.

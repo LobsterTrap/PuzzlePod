@@ -1,0 +1,41 @@
+# Summit Demo — Bad Agent Container Image
+#
+# This image is IDENTICAL on both laptops. The only difference is
+# whether PuzzlePod governance is applied when running it.
+#
+# Build:
+#   podman build -t bad-agent -f summit-demo/Containerfile.bad-agent summit-demo/
+#
+# Run UNGOVERNED (Laptop 2 / Ubuntu):
+#   podman run --rm -it bad-agent
+#
+# Run GOVERNED (Laptop 1 / Fedora+PuzzlePod):
+#   puzzle-podman run --puzzle-branch --profile=summit-demo --native bad-agent
+
+FROM registry.fedoraproject.org/fedora-minimal:42
+
+RUN microdnf install -y \
+        python3 \
+        curl \
+        ca-certificates \
+        procps-ng \
+        shadow-utils \
+        cronie \
+    && microdnf clean all
+
+# Create directories:
+#   /workspace — will be overlaid by puzzle-podman on laptop 1
+#   /run/puzzlepod — Landlock rules bind-mount target (Podman-native mode)
+RUN mkdir -p /workspace /run/puzzlepod
+
+# Copy the bad agent script
+COPY bad-agent.py /app/bad-agent.py
+RUN chmod +x /app/bad-agent.py
+
+WORKDIR /workspace
+
+# Use CMD (not ENTRYPOINT) so that in Podman-native mode, puzzle-init can be
+# set as the entrypoint and CMD becomes its arguments:
+#   /puzzle-init python3 /app/bad-agent.py
+# In ungoverned mode, CMD runs directly as the default command.
+CMD ["python3", "/app/bad-agent.py"]

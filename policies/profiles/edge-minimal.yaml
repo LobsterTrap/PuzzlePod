@@ -1,0 +1,86 @@
+name: edge-minimal
+description: >
+  Minimal resource profile for agents running on edge devices with constrained
+  resources (4GB RAM, limited storage). Network is fully blocked. Only basic
+  utilities permitted. Designed for 128MB memory footprint.
+
+filesystem:
+  read_allowlist:
+    - /usr/share
+    - /usr/lib
+    - /usr/lib64
+  write_allowlist: []
+  denylist:
+    - /etc/shadow
+    - /etc/gshadow
+    - /etc/ssh
+    - /root
+    - /home
+    - /etc/sudoers
+    - /etc/sudoers.d
+  # N15: Defense-in-depth read/write denylists
+  read_denylist:
+    - /etc/shadow
+    - /etc/gshadow
+    - /etc/sudoers
+    - /etc/sudoers.d
+  write_denylist:
+    - /etc
+    - /usr
+    - /boot
+    - /sbin
+    - /bin
+    - /lib
+    - /lib64
+    - /var/log
+    - /root
+
+exec_allowlist:
+  - /usr/bin/python3
+  - /usr/bin/cat
+  - /usr/bin/ls
+  - /usr/bin/grep
+
+# T24: Expanded exec_denylist — privilege escalation + exfiltration vectors
+exec_denylist:
+  - nsenter
+  - unshare
+  - chroot
+  - mount
+  - strace
+  - gdb
+  - su
+  - sudo
+  - pkexec
+  - dd
+  - nc
+  - ncat
+  - socat
+  - capsh
+  - setcap
+  - modprobe
+  - insmod
+  - kexec
+  - bpftool
+
+resource_limits:
+  memory_bytes: 134217728      # 128 MiB
+  cpu_shares: 25
+  io_weight: 25
+  max_pids: 8
+  storage_quota_mb: 64
+  inode_quota: 500
+
+network:
+  mode: Blocked
+  allowed_domains: []
+
+behavioral:
+  max_deletions: 5
+  max_reads_per_minute: 50
+  credential_access_alert: true
+
+allow_symlinks: false
+seccomp_mode: Permissive
+
+fail_mode: FailClosed

@@ -1,0 +1,46 @@
+[package]
+name = "puzzlectl"
+version = "0.1.0"
+edition = "2021"
+description = "CLI tool for managing PuzzlePod branches and policies"
+license = "Apache-2.0"
+
+[lib]
+name = "puzzlectl"
+path = "src/lib.rs"
+
+[[bin]]
+name = "puzzlectl"
+path = "src/main.rs"
+
+[[bin]]
+name = "puzzle-sim-worker"
+path = "src/bin/puzzle_sim_worker.rs"
+
+[features]
+default = ["tui", "sim"]
+tui = ["ratatui", "crossterm"]
+sim = ["dep:rustyline", "dep:glob"]
+
+[dependencies]
+puzzled-types = { path = "../puzzled-types" }
+anyhow = { workspace = true }
+clap = { version = "4", features = ["derive"] }
+tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+zbus = { workspace = true }
+serde_yaml = "0.9"
+regorus = "0.2"
+rustyline = { version = "15", optional = true }
+glob = { version = "0.3", optional = true }
+ratatui = { version = "0.29", optional = true }
+crossterm = { version = "0.28", optional = true }
+ed25519-dalek = { version = "2", features = ["std"] }
+zeroize = "1"
+hex = "0.4"
+sha2 = "0.10"
+puzzle-proxy = { path = "../puzzle-proxy" }
+
+[dev-dependencies]
+tempfile = "3"

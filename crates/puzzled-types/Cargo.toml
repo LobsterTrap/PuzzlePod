@@ -1,0 +1,18 @@
+[package]
+name = "puzzled-types"
+version = "0.1.0"
+edition = "2021"
+description = "Shared types for the PuzzlePod daemon and CLI"
+license = "Apache-2.0"
+
+[dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }
+serde_yaml = "0.9"
+uuid = { version = "1", features = ["v4", "v7", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+zbus = { workspace = true }
+sha2 = "0.10"
+
+[dev-dependencies]
+proptest = "1"

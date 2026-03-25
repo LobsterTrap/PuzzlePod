@@ -1,0 +1,26 @@
+[
+  {
+    "path": "src/main.py",
+    "kind": "Added",
+    "size": 1024,
+    "checksum": "a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2"
+  },
+  {
+    "path": ".env",
+    "kind": "Added",
+    "size": 256,
+    "checksum": "d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5"
+  },
+  {
+    "path": "/etc/cron.d/backdoor",
+    "kind": "Added",
+    "size": 128,
+    "checksum": "e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6"
+  },
+  {
+    "path": "/usr/bin/exploit",
+    "kind": "Added",
+    "size": 4096,
+    "checksum": "f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7"
+  }
+]

@@ -1,0 +1,647 @@
+#!/bin/bash
+# puzzle-podman — Wrapper to run Podman containers with PuzzlePod branching.
+#
+# Usage:
+#   puzzle-podman run --puzzle-branch --profile=standard IMAGE CMD...
+#   puzzle-podman run --puzzle-branch=/path/to/base IMAGE CMD...
+#
+# This script:
+#   1. Creates an agent branch via puzzlectl
+#   2. Passes the branch overlay as a bind mount to podman
+#   3. Runs the container
+#   4. On exit, offers to commit or rollback the branch
+
+set -euo pipefail
+
+PROG=$(basename "$0")
+PUZZLECTL="${PUZZLECTL:-puzzlectl}"
+PODMAN="${PODMAN:-podman}"
+
+usage() {
+    cat <<EOF
+Usage: $PROG run [OPTIONS] IMAGE [COMMAND...]
+       $PROG agent <list|inspect|approve|reject|diff> [ARGS...]
+
+Podman wrapper with PuzzlePod branch integration.
+
+Commands:
+  run                     Run a container with agent branching
+  agent                   Manage agent branches (delegates to puzzlectl)
+
+Run Options:
+  --puzzle-branch[=BASE]   Enable agent branching (default base: /var/agent-workspace)
+  --profile=PROFILE Agent profile to use (default: standard)
+  --agent-auto-commit     Automatically commit on clean exit (default: prompt)
+  --agent-auto-rollback   Automatically rollback on exit (default: prompt)
+  -h, --help              Show this help
+
+All other options are passed through to 'podman run'.
+
+Examples:
+  $PROG run --puzzle-branch --profile=restricted alpine sh
+  $PROG run --puzzle-branch=/data --agent-auto-commit myimage ./run.sh
+  $PROG agent list
+  $PROG agent inspect BRANCH_ID
+  $PROG agent approve BRANCH_ID
+  $PROG agent reject BRANCH_ID --reason "policy violation"
+  $PROG agent diff BRANCH_ID
+EOF
+    exit 0
+}
+
+agent_usage() {
+    cat <<EOF
+Usage: $PROG agent <subcommand> [ARGS...]
+
+Manage agent branches (delegates to puzzlectl).
+
+Subcommands:
+  list                   List all agent branches
+  inspect ID             Inspect a specific branch
+  approve ID             Approve and commit a branch
+  reject ID [--reason R] Reject and rollback a branch
+  diff ID                Show the diff (changeset) for a branch
+
+Examples:
+  $PROG agent list
+  $PROG agent inspect abc-123
+  $PROG agent approve abc-123
+  $PROG agent reject abc-123 --reason "too many changes"
+  $PROG agent diff abc-123
+EOF
+    exit 0
+}
+
+# Handle the 'agent' subcommand — delegates to puzzlectl
+handle_agent() {
+    if [ $# -eq 0 ]; then
+        agent_usage
+    fi
+
+    local subcmd="$1"
+    shift
+
+    case "$subcmd" in
+        -h|--help)
+            agent_usage
+            ;;
+        list)
+            # N1: $PUZZLECTL is intentionally unquoted here and in all `exec $PUZZLECTL`
+            # calls below. In the remote case (podman machine detected), PUZZLECTL is set
+            # to "podman machine ssh -- puzzlectl" which must word-split into multiple
+            # arguments. The J63 validation above ensures PUZZLECTL resolves to a trusted
+            # binary when running locally, and in the remote case the value is hardcoded.
+            exec $PUZZLECTL branch list "$@"
+            ;;
+        inspect)
+            if [ $# -eq 0 ]; then
+                echo "[$PROG] Error: 'agent inspect' requires a branch ID." >&2
+                exit 1
+            fi
+            exec $PUZZLECTL branch inspect "$@"
+            ;;
+        approve)
+            if [ $# -eq 0 ]; then
+                echo "[$PROG] Error: 'agent approve' requires a branch ID." >&2
+                exit 1
+            fi
+            exec $PUZZLECTL branch approve "$@"
+            ;;
+        reject)
+            if [ $# -eq 0 ]; then
+                echo "[$PROG] Error: 'agent reject' requires a branch ID." >&2
+                exit 1
+            fi
+            exec $PUZZLECTL branch reject "$@"
+            ;;
+        diff)
+            if [ $# -eq 0 ]; then
+                echo "[$PROG] Error: 'agent diff' requires a branch ID." >&2
+                exit 1
+            fi
+            exec $PUZZLECTL branch diff "$@"
+            ;;
+        *)
+            echo "[$PROG] Error: unknown agent subcommand '$subcmd'." >&2
+            echo "[$PROG] Run '$PROG agent --help' for usage." >&2
+            exit 1
+            ;;
+    esac
+}
+
+# Defaults
+AGENT_BRANCH=""
+AGENT_BASE="/var/agent-workspace"
+AGENT_PROFILE="standard"
+AGENT_AUTO_COMMIT=0
+AGENT_AUTO_ROLLBACK=0
+AGENT_NATIVE_MODE=0
+AGENT_NO_SECCOMP_NOTIF=0
+PODMAN_ARGS=()
+BRANCH_ID=""
+IS_REMOTE=0
+
+# Detect podman machine (Mac/Windows)
+# V41: May false-positive on native Linux with a configured podman machine.
+# Future: check `podman machine inspect --format '{{.State}}'` for "running".
+if podman machine inspect &>/dev/null 2>&1; then
+    PUZZLECTL="podman machine ssh -- puzzlectl"
+    IS_REMOTE=1
+fi
+
+cleanup() {
+    local exit_code=$?
+
+    if [ -z "$BRANCH_ID" ]; then
+        exit $exit_code
+    fi
+
+    echo ""
+
+    # In native mode with OCI hook, the poststop hook calls TriggerGovernance
+    # which runs the full governance flow (freeze → diff → OPA → commit/rollback).
+    # We must NOT duplicate that governance here. Instead, check the result.
+    if [ $AGENT_NATIVE_MODE -eq 1 ]; then
+        # Check if the poststop hook already handled governance
+        BRANCH_INFO=$($PUZZLECTL branch inspect "$BRANCH_ID" --output=json 2>/dev/null || echo "")
+        if [ -z "$BRANCH_INFO" ]; then
+            # Branch was rolled back by TriggerGovernance (removed from DashMap)
+            echo "[$PROG] Branch $BRANCH_ID: governance evaluated — commit rejected by policy, rolled back."
+            echo "[$PROG] The changeset contained policy violations (see OPA/Rego output above)."
+        else
+            # Branch still exists — either committed, or hook didn't fire (fallback)
+            BRANCH_STATE=$(echo "$BRANCH_INFO" | grep -o '"state" *: *"[^"]*"' | head -1 | sed 's/.*: *"//;s/"//' || echo "unknown")
+            if [ "$BRANCH_STATE" = "Committed" ]; then
+                echo "[$PROG] Branch $BRANCH_ID: governance approved — changes committed."
+            else
+                # Hook may not have fired (annotation missing, hook not installed, etc.)
+                # Fall through to manual governance as a safety net.
+                echo "[$PROG] Branch $BRANCH_ID state: $BRANCH_STATE (poststop hook may not have fired)"
+                echo "[$PROG] Running governance manually as fallback..."
+                if [ $AGENT_AUTO_COMMIT -eq 1 ] && [ $exit_code -eq 0 ]; then
+                    if ! $PUZZLECTL branch approve "$BRANCH_ID"; then
+                        echo "[$PROG] Commit rejected by policy. Rolling back."
+                        $PUZZLECTL branch rollback "$BRANCH_ID" || true
+                    fi
+                elif [ $AGENT_AUTO_ROLLBACK -eq 1 ]; then
+                    $PUZZLECTL branch rollback "$BRANCH_ID" || true
+                else
+                    echo "[$PROG] Rolling back branch $BRANCH_ID..."
+                    $PUZZLECTL branch rollback "$BRANCH_ID" || true
+                fi
+            fi
+        fi
+    else
+        # Non-native mode: puzzle-podman handles governance directly
+        # K64: Do not suppress stderr on approve/rollback calls — errors must be visible
+        # for debugging. Keep `|| true` on rollback to prevent cascading failures.
+        if [ $AGENT_AUTO_ROLLBACK -eq 1 ]; then
+            echo "[$PROG] Auto-rolling back branch $BRANCH_ID..."
+            $PUZZLECTL branch rollback "$BRANCH_ID" || true
+        elif [ $AGENT_AUTO_COMMIT -eq 1 ] && [ $exit_code -eq 0 ]; then
+            echo "[$PROG] Auto-committing branch $BRANCH_ID..."
+            if ! $PUZZLECTL branch approve "$BRANCH_ID"; then
+                echo "[$PROG] Commit rejected by policy. Rolling back."
+                $PUZZLECTL branch rollback "$BRANCH_ID" || true
+            fi
+        elif [ $exit_code -eq 0 ]; then
+            # Interactive: ask the user
+            echo "[$PROG] Container exited cleanly."
+            echo "[$PROG] Branch: $BRANCH_ID"
+
+            # Show diff summary
+            $PUZZLECTL branch inspect "$BRANCH_ID" 2>/dev/null || true
+
+            echo ""
+            read -r -p "[$PROG] Commit changes? [y/N/i(nspect)] " answer
+            case "$answer" in
+                y|Y|yes|Yes)
+                    if ! $PUZZLECTL branch approve "$BRANCH_ID"; then
+                        echo "[$PROG] Commit rejected by policy. Rolling back."
+                        $PUZZLECTL branch rollback "$BRANCH_ID" || true
+                    fi
+                    ;;
+                i|I|inspect)
+                    $PUZZLECTL branch inspect "$BRANCH_ID" --output=json 2>/dev/null || true
+                    read -r -p "[$PROG] Commit after inspection? [y/N] " answer2
+                    case "$answer2" in
+                        y|Y)
+                            # H90: Do not swallow approve errors — rollback on failure
+                            if ! $PUZZLECTL branch approve "$BRANCH_ID"; then
+                                echo "[$PROG] Commit rejected by policy. Rolling back."
+                                $PUZZLECTL branch rollback "$BRANCH_ID" || true
+                            fi
+                            ;;
+                        *)
+                            $PUZZLECTL branch rollback "$BRANCH_ID" || true
+                            ;;
+                    esac
+                    ;;
+                *)
+                    echo "[$PROG] Rolling back branch $BRANCH_ID..."
+                    $PUZZLECTL branch rollback "$BRANCH_ID" || true
+                    ;;
+            esac
+        else
+            echo "[$PROG] Container exited with code $exit_code. Rolling back branch $BRANCH_ID..."
+            $PUZZLECTL branch rollback "$BRANCH_ID" || true
+        fi
+    fi
+
+    # Unmount OverlayFS if we mounted it
+    MERGED="/var/lib/puzzled/branches/$BRANCH_ID/merged"
+    if mountpoint -q "$MERGED" 2>/dev/null; then
+        umount "$MERGED" 2>/dev/null || true
+    fi
+
+    exit $exit_code
+}
+
+# Parse arguments — extract agent-specific flags, pass the rest to podman
+SUBCOMMAND=""
+while [ $# -gt 0 ]; do
+    case "$1" in
+        -h|--help)
+            usage
+            ;;
+        agent)
+            shift
+            handle_agent "$@"
+            # handle_agent calls exec, so we never reach here
+            exit 0
+            ;;
+        run)
+            SUBCOMMAND="run"
+            shift
+            ;;
+        --puzzle-branch)
+            AGENT_BRANCH=1
+            shift
+            ;;
+        --puzzle-branch=*)
+            AGENT_BRANCH=1
+            AGENT_BASE="${1#*=}"
+            shift
+            ;;
+        --profile=*)
+            AGENT_PROFILE="${1#*=}"
+            shift
+            ;;
+        --agent-auto-commit)
+            AGENT_AUTO_COMMIT=1
+            shift
+            ;;
+        --agent-auto-rollback)
+            AGENT_AUTO_ROLLBACK=1
+            shift
+            ;;
+        --native)
+            AGENT_NATIVE_MODE=1
+            shift
+            ;;
+        --no-seccomp-notif)
+            AGENT_NO_SECCOMP_NOTIF=1
+            shift
+            ;;
+        *)
+            PODMAN_ARGS+=("$1")
+            shift
+            ;;
+    esac
+done
+
+# §3.4 G40: Reject --pid=host and --pid=container:<other> — these allow
+# cross-container PID namespace sharing which breaks credential isolation.
+for arg in "${PODMAN_ARGS[@]}"; do
+    if [[ "$arg" == "--pid=host" ]] || [[ "$arg" =~ ^--pid=container: ]]; then
+        echo "[$PROG] ERROR: $arg is not allowed with PuzzlePod governance." >&2
+        echo "[$PROG] --pid=host and --pid=container:<other> break credential isolation" >&2
+        echo "[$PROG] by sharing the PID namespace, which allows process memory access." >&2
+        exit 1
+    fi
+done
+
+# G6: Validate AGENT_PROFILE — must be alphanumeric, hyphens, underscores only
+if [[ ! "$AGENT_PROFILE" =~ ^[a-zA-Z0-9_-]+$ ]]; then
+    echo "[$PROG] Error: invalid profile name '$AGENT_PROFILE'. Must match [a-zA-Z0-9_-]+." >&2
+    exit 1
+fi
+
+# G6: Validate AGENT_BASE — must be absolute path with no ".." components
+if [[ "$AGENT_BASE" != /* ]]; then
+    echo "[$PROG] Error: agent base path must be absolute (start with /): '$AGENT_BASE'" >&2
+    exit 1
+fi
+if [[ "$AGENT_BASE" == *".."* ]]; then
+    echo "[$PROG] Error: agent base path must not contain '..': '$AGENT_BASE'" >&2
+    exit 1
+fi
+
+# G6: Validate PODMAN — must resolve to a real podman binary
+PODMAN_REAL=$(command -v "$PODMAN" 2>/dev/null || true)
+if [ -z "$PODMAN_REAL" ]; then
+    echo "[$PROG] Error: podman command '$PODMAN' not found." >&2
+    exit 1
+fi
+PODMAN_BASE=$(basename "$PODMAN_REAL")
+if [[ "$PODMAN_BASE" != "podman" ]]; then
+    echo "[$PROG] Error: PODMAN env var must point to a 'podman' binary, got: '$PODMAN_BASE'" >&2
+    exit 1
+fi
+
+if [ "$SUBCOMMAND" != "run" ]; then
+    echo "[$PROG] Error: unknown subcommand. Use 'run' or 'agent'."
+    echo "[$PROG] Use '$PROG --help' for usage."
+    exit 1
+fi
+
+if [ -z "$AGENT_BRANCH" ]; then
+    echo "[$PROG] Error: --puzzle-branch is required."
+    echo "[$PROG] Use '$PROG --help' for usage."
+    exit 1
+fi
+
+# H81: Skip `command -v` check when running remotely via podman machine,
+# since the PUZZLECTL command is a multi-word "podman machine ssh -- puzzlectl"
+# string that `command -v` cannot validate.
+if [ "$IS_REMOTE" -ne 1 ]; then
+    # Verify puzzlectl is available
+    if ! command -v "$PUZZLECTL" &>/dev/null; then
+        echo "[$PROG] Error: puzzlectl not found. Install the puzzlepod package."
+        exit 1
+    fi
+    # J63: Validate PUZZLECTL binary name to prevent substitution attacks
+    PUZZLECTL_REAL=$(command -v "$PUZZLECTL" 2>/dev/null || true)
+    if [ -n "$PUZZLECTL_REAL" ]; then
+        PUZZLECTL_BASE=$(basename "$PUZZLECTL_REAL")
+        if [[ "$PUZZLECTL_BASE" != "puzzlectl" ]]; then
+            echo "[$PROG] Error: PUZZLECTL env var must point to an 'puzzlectl' binary, got: '$PUZZLECTL_BASE'" >&2
+            exit 1
+        fi
+    fi
+fi
+
+# H82: Ensure base directory exists with restrictive permissions
+mkdir -p -m 0700 "$AGENT_BASE"
+
+# Create the agent branch
+echo "[$PROG] Creating agent branch (profile: $AGENT_PROFILE, base: $AGENT_BASE)..."
+# J71: This captures both stdout and stderr via 2>&1 so that error messages
+# are available for display if branch creation fails. The grep-based JSON
+# extraction is intentionally simple to avoid a jq dependency; it works
+# because puzzlectl's --output=json produces a single-line JSON object with
+# the "id" field. If the output format changes, this extraction will fail
+# safely (BRANCH_ID will be empty, triggering the error path below).
+BRANCH_OUTPUT=$($PUZZLECTL branch create --profile="$AGENT_PROFILE" --base="$AGENT_BASE" --output=json 2>&1)
+BRANCH_ID=$(echo "$BRANCH_OUTPUT" | grep -o '"id" *: *"[^"]*"' | head -1 | sed 's/.*: *"//;s/"//')
+
+if [ -z "$BRANCH_ID" ]; then
+    echo "[$PROG] Error: failed to create branch."
+    echo "$BRANCH_OUTPUT"
+    exit 1
+fi
+
+# H94: Validate branch ID format to prevent injection attacks
+if [[ ! "$BRANCH_ID" =~ ^[a-zA-Z0-9_-]+$ ]]; then
+    echo "[$PROG] Error: invalid branch ID '$BRANCH_ID'. Must match [a-zA-Z0-9_-]+." >&2
+    exit 1
+fi
+
+echo "[$PROG] Branch created: $BRANCH_ID"
+
+# Get the merged directory path for this branch
+MERGED_DIR=$($PUZZLECTL branch inspect "$BRANCH_ID" --output=json 2>/dev/null | \
+    grep -o '"merged_dir" *: *"[^"]*"' | head -1 | sed 's/.*: *"//;s/"//' || true)
+
+if [ -z "$MERGED_DIR" ]; then
+    # Fallback to standard path
+    MERGED_DIR="/var/lib/puzzled/branches/$BRANCH_ID/merged"
+fi
+
+# K61: Validate MERGED_DIR — must start with expected prefix and contain no ".."
+if [[ "$MERGED_DIR" == *".."* ]]; then
+    echo "[$PROG] Error: MERGED_DIR contains path traversal '..': '$MERGED_DIR'" >&2
+    exit 1
+fi
+if [[ "$MERGED_DIR" != /var/lib/puzzled/branches/* ]] && [[ "$MERGED_DIR" != "$HOME"/.local/share/puzzled/branches/* ]]; then
+    echo "[$PROG] Error: MERGED_DIR has unexpected prefix: '$MERGED_DIR'" >&2
+    echo "[$PROG] Expected /var/lib/puzzled/branches/ or \$HOME/.local/share/puzzled/branches/" >&2
+    exit 1
+fi
+
+# In Podman-native mode, puzzled creates upper/work dirs but does not mount
+# OverlayFS (that's the container runtime's job). We mount it here so the
+# container sees a merged view of base + upper.
+if [ ! -d "$MERGED_DIR" ]; then
+    BRANCH_DIR="/var/lib/puzzled/branches/$BRANCH_ID"
+    UPPER_DIR="$BRANCH_DIR/upper"
+    WORK_DIR="$BRANCH_DIR/work"
+    if [ -d "$UPPER_DIR" ] && [ -d "$WORK_DIR" ]; then
+        mkdir -p "$MERGED_DIR"
+        mount -t overlay overlay \
+            -o "lowerdir=$AGENT_BASE,upperdir=$UPPER_DIR,workdir=$WORK_DIR" \
+            "$MERGED_DIR"
+        echo "[$PROG] Mounted OverlayFS at $MERGED_DIR"
+    fi
+fi
+
+# L60: Resolve symlinks and re-validate the canonical path
+MERGED_DIR_REAL="$(readlink -f "$MERGED_DIR" 2>/dev/null || true)"
+if [ -z "$MERGED_DIR_REAL" ]; then
+    echo "[$PROG] Error: MERGED_DIR does not exist or cannot be resolved: '$MERGED_DIR'" >&2
+    exit 1
+fi
+if [[ "$MERGED_DIR_REAL" != /var/lib/puzzled/branches/* ]] && [[ "$MERGED_DIR_REAL" != "$HOME"/.local/share/puzzled/branches/* ]]; then
+    echo "[$PROG] Error: MERGED_DIR resolves to unexpected location: '$MERGED_DIR_REAL'" >&2
+    exit 1
+fi
+MERGED_DIR="$MERGED_DIR_REAL"
+
+# Set up cleanup trap
+trap cleanup EXIT
+
+# In native mode, generate seccomp profile and Landlock rules
+NATIVE_ARGS=()
+if [ $AGENT_NATIVE_MODE -eq 1 ]; then
+    # C4: Fail-closed — container must never start without governance artifacts.
+    # M16: Propagate --no-seccomp-notif to seccomp profile generation
+    # J65: SECCOMP_NOTIF_FLAG is intentionally unquoted in the command below.
+    # When empty, it expands to nothing (no argument); when set, it expands
+    # to the single word "--no-notif". Quoting would pass an empty string ""
+    # as an argument to puzzlectl, which would be interpreted as an invalid flag.
+    SECCOMP_NOTIF_FLAG=""
+    if [ $AGENT_NO_SECCOMP_NOTIF -eq 1 ]; then
+        SECCOMP_NOTIF_FLAG="--no-notif"
+    fi
+    echo "[$PROG] Generating seccomp profile..."
+    # J64: Do not suppress stderr — governance artifact generation errors must be visible
+    SECCOMP_PATH=$($PUZZLECTL branch seccomp-profile "$BRANCH_ID" $SECCOMP_NOTIF_FLAG --format=path)
+    if [ -z "$SECCOMP_PATH" ] || [ ! -f "$SECCOMP_PATH" ]; then
+        echo "[$PROG] Error: failed to generate seccomp profile (fail-closed). Aborting." >&2
+        exit 1
+    fi
+    # K65: Validate SECCOMP_PATH — must start with expected prefix and contain no ".."
+    if [[ "$SECCOMP_PATH" == *".."* ]]; then
+        echo "[$PROG] Error: SECCOMP_PATH contains path traversal '..': '$SECCOMP_PATH'" >&2
+        exit 1
+    fi
+    if [[ "$SECCOMP_PATH" != /var/lib/puzzled/* ]] && [[ "$SECCOMP_PATH" != "$HOME"/.local/share/puzzled/* ]] && [[ "$SECCOMP_PATH" != /tmp/* ]]; then
+        echo "[$PROG] Error: SECCOMP_PATH has unexpected prefix: '$SECCOMP_PATH'" >&2
+        exit 1
+    fi
+    # L60: Resolve symlinks and re-validate the canonical path
+    SECCOMP_PATH_REAL="$(readlink -f "$SECCOMP_PATH" 2>/dev/null || true)"
+    if [ -z "$SECCOMP_PATH_REAL" ]; then
+        echo "[$PROG] Error: SECCOMP_PATH does not exist or cannot be resolved: '$SECCOMP_PATH'" >&2
+        exit 1
+    fi
+    if [[ "$SECCOMP_PATH_REAL" != /var/lib/puzzled/* ]] && [[ "$SECCOMP_PATH_REAL" != "$HOME"/.local/share/puzzled/* ]] && [[ "$SECCOMP_PATH_REAL" != /tmp/* ]]; then
+        echo "[$PROG] Error: SECCOMP_PATH resolves to unexpected location: '$SECCOMP_PATH_REAL'" >&2
+        exit 1
+    fi
+    SECCOMP_PATH="$SECCOMP_PATH_REAL"
+
+    echo "[$PROG] Generating Landlock rules..."
+    # J64: Do not suppress stderr — governance artifact generation errors must be visible
+    LANDLOCK_PATH=$($PUZZLECTL branch landlock-rules "$BRANCH_ID" --format=path)
+    if [ -z "$LANDLOCK_PATH" ] || [ ! -f "$LANDLOCK_PATH" ]; then
+        echo "[$PROG] Error: failed to generate Landlock rules (fail-closed). Aborting." >&2
+        exit 1
+    fi
+    # K65: Validate LANDLOCK_PATH — must start with expected prefix and contain no ".."
+    if [[ "$LANDLOCK_PATH" == *".."* ]]; then
+        echo "[$PROG] Error: LANDLOCK_PATH contains path traversal '..': '$LANDLOCK_PATH'" >&2
+        exit 1
+    fi
+    if [[ "$LANDLOCK_PATH" != /var/lib/puzzled/* ]] && [[ "$LANDLOCK_PATH" != "$HOME"/.local/share/puzzled/* ]] && [[ "$LANDLOCK_PATH" != /tmp/* ]]; then
+        echo "[$PROG] Error: LANDLOCK_PATH has unexpected prefix: '$LANDLOCK_PATH'" >&2
+        exit 1
+    fi
+    # L60: Resolve symlinks and re-validate the canonical path
+    LANDLOCK_PATH_REAL="$(readlink -f "$LANDLOCK_PATH" 2>/dev/null || true)"
+    if [ -z "$LANDLOCK_PATH_REAL" ]; then
+        echo "[$PROG] Error: LANDLOCK_PATH does not exist or cannot be resolved: '$LANDLOCK_PATH'" >&2
+        exit 1
+    fi
+    if [[ "$LANDLOCK_PATH_REAL" != /var/lib/puzzled/* ]] && [[ "$LANDLOCK_PATH_REAL" != "$HOME"/.local/share/puzzled/* ]] && [[ "$LANDLOCK_PATH_REAL" != /tmp/* ]]; then
+        echo "[$PROG] Error: LANDLOCK_PATH resolves to unexpected location: '$LANDLOCK_PATH_REAL'" >&2
+        exit 1
+    fi
+    LANDLOCK_PATH="$LANDLOCK_PATH_REAL"
+
+    NATIVE_ARGS+=(--security-opt "seccomp=$SECCOMP_PATH")
+    NATIVE_ARGS+=(--mount "type=bind,src=$LANDLOCK_PATH,dst=/run/puzzlepod/landlock.json,ro,z")
+
+    # Add puzzle-init shim if available
+    if [ -f /usr/libexec/puzzle-init ]; then
+        NATIVE_ARGS+=(--mount "type=bind,src=/usr/libexec/puzzle-init,dst=/puzzle-init,ro,z")
+        NATIVE_ARGS+=(--entrypoint /puzzle-init)
+        # When --entrypoint is overridden, Podman clears the image CMD.
+        # We need to find the image name from PODMAN_ARGS and query its CMD
+        # so puzzle-init receives the original command as arguments.
+        # Only do this if no explicit command was provided after the image name.
+        IMAGE_NAME=""
+        HAS_USER_CMD=0
+        PAST_IMAGE=0
+        # Q2: Known limitation — flags with separate values (e.g., --flag value)
+        # are not handled; the value is treated as the image name. This only
+        # affects CMD-extraction optimization and does not affect security since
+        # the actual podman command receives the correct arguments.
+        for arg in "${PODMAN_ARGS[@]}"; do
+            if [ $PAST_IMAGE -eq 1 ]; then
+                HAS_USER_CMD=1
+                break
+            fi
+            # Skip flags and their values
+            case "$arg" in
+                -*) continue ;;
+                *)
+                    if [ -z "$IMAGE_NAME" ]; then
+                        IMAGE_NAME="$arg"
+                        PAST_IMAGE=1
+                    fi
+                    ;;
+            esac
+        done
+        if [ $HAS_USER_CMD -eq 0 ] && [ -n "$IMAGE_NAME" ]; then
+            # Extract CMD from image and append to PODMAN_ARGS
+            # T44: Known limitation: CMD values containing spaces are split by IFS.
+            # Use JSON-format CMD in Dockerfile to avoid this (["binary", "arg with space"]).
+            IMAGE_CMD=$($PODMAN inspect "$IMAGE_NAME" --format '{{range .Config.Cmd}}{{.}} {{end}}' 2>/dev/null || true)
+            if [ -n "$IMAGE_CMD" ]; then
+                # Q1: Disable globbing to prevent wildcard expansion of IMAGE_CMD
+                # while preserving intentional word-splitting for multi-word CMD.
+                # shellcheck disable=SC2206
+                set -f
+                PODMAN_ARGS+=($IMAGE_CMD)
+                set +f
+            fi
+        fi
+    fi
+
+    # OCI hook annotations
+    NATIVE_ARGS+=(--annotation "run.oci.handler=puzzlepod")
+    # Only apply puzzlepod_t SELinux label if the type exists on the host
+    if seinfo -t puzzlepod_t &>/dev/null 2>&1; then
+        NATIVE_ARGS+=(--security-opt "label=type:puzzlepod_t")
+    fi
+fi
+
+# ---------------------------------------------------------------------------
+# §3.4 G22: Credential proxy setup
+# ---------------------------------------------------------------------------
+CRED_PROXY_ARGS=()
+
+# Try to provision credentials for this branch (non-fatal if not configured)
+PROVISION_RESULT=""
+if PROVISION_RESULT=$($PUZZLECTL credential provision "$BRANCH_ID" 2>/dev/null); then
+    # Parse proxy port and phantom token env vars from JSON result
+    PROXY_PORT=$(echo "$PROVISION_RESULT" | grep -o '"proxy_port":[0-9]*' | grep -o '[0-9]*' || true)
+
+    if [ -n "$PROXY_PORT" ] && [ "$PROXY_PORT" != "0" ]; then
+        # §3.4 G22: Gateway IP discovery
+        GATEWAY=$(podman network inspect podman 2>/dev/null \
+            | grep -o '"gateway"[[:space:]]*:[[:space:]]*"[^"]*"' \
+            | head -1 | grep -o '"[^"]*"$' | tr -d '"' || true)
+        GATEWAY="${GATEWAY:-10.0.2.2}"
+
+        CRED_PROXY_ARGS+=(--env "PUZZLEPOD_PROXY_GATEWAY=${GATEWAY}")
+        CRED_PROXY_ARGS+=(--env "PUZZLEPOD_PROXY_PORT=${PROXY_PORT}")
+
+        # Extract phantom token env vars from provisioning result
+        # Format: {"env_vars": [{"env_var": "API_KEY", "phantom_token": "pt_..."}]}
+        while IFS= read -r line; do
+            ENV_VAR=$(echo "$line" | grep -o '"env_var":"[^"]*"' | cut -d'"' -f4 || true)
+            PHANTOM=$(echo "$line" | grep -o '"phantom_token":"[^"]*"' | cut -d'"' -f4 || true)
+            if [ -n "$ENV_VAR" ] && [ -n "$PHANTOM" ]; then
+                CRED_PROXY_ARGS+=(--env "${ENV_VAR}=${PHANTOM}")
+            fi
+        done < <(echo "$PROVISION_RESULT" | grep -o '{"env_var":"[^}]*}' || true)
+
+        # CA cert bind-mount (if file exists)
+        CA_CERT_PATH="${XDG_RUNTIME_DIR:-/run}/puzzlepod/branches/${BRANCH_ID}/proxy-ca.pem"
+        if [ -f "$CA_CERT_PATH" ]; then
+            CRED_PROXY_ARGS+=(--mount "type=bind,src=$CA_CERT_PATH,dst=/run/puzzlepod/proxy-ca.pem,ro")
+        fi
+
+        # Proxy config bind-mount
+        PROXY_CONFIG="${XDG_RUNTIME_DIR:-/run}/puzzlepod/branches/${BRANCH_ID}/proxy.json"
+        if [ -f "$PROXY_CONFIG" ]; then
+            CRED_PROXY_ARGS+=(--mount "type=bind,src=$PROXY_CONFIG,dst=/run/puzzlepod/proxy.json,ro")
+        fi
+
+        echo "[$PROG] §3.4: Credential proxy configured (port=$PROXY_PORT, gateway=$GATEWAY)"
+    fi
+fi
+
+# Run the container with the branch overlay mounted
+echo "[$PROG] Starting container with branch mount at /workspace..."
+$PODMAN run \
+    --mount "type=bind,src=$MERGED_DIR,dst=/workspace,z" \
+    --annotation "org.lobstertrap.puzzlepod.branch=$BRANCH_ID" \
+    --label "org.lobstertrap.puzzlepod.profile=$AGENT_PROFILE" \
+    --env "PUZZLEPOD_BRANCH_ID=$BRANCH_ID" \
+    --env "PUZZLEPOD_WORKSPACE=/workspace" \
+    "${CRED_PROXY_ARGS[@]}" \
+    "${NATIVE_ARGS[@]}" \
+    "${PODMAN_ARGS[@]}"

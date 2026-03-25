@@ -1,0 +1,107 @@
+name: container-builder
+description: >
+  Profile for container image build agents. Gated network access to container
+  registries for pulling base images and pushing built images. Uses Buildah,
+  Podman, and Skopeo for rootless container operations.
+
+filesystem:
+  read_allowlist:
+    - /usr/share
+    - /usr/lib
+    - /usr/lib64
+    - /etc/alternatives
+    - /etc/containers
+    - /etc/subuid
+    - /etc/subgid
+  write_allowlist:
+    - /tmp
+  denylist:
+    - /etc/shadow
+    - /etc/gshadow
+    - /etc/ssh
+    - /root/.ssh
+    - /etc/sudoers
+    - /etc/sudoers.d
+  # N15: Defense-in-depth read/write denylists
+  read_denylist:
+    - /etc/shadow
+    - /etc/gshadow
+    - /etc/sudoers
+    - /etc/sudoers.d
+  write_denylist:
+    - /etc
+    - /usr
+    - /boot
+    - /sbin
+    - /bin
+    - /lib
+    - /lib64
+    - /var/log
+    - /root
+
+# S14: podman/buildah run rootless — no host socket access needed.
+# If container builds require the podman socket, use the privileged profile instead.
+exec_allowlist:
+  - /usr/bin/buildah
+  # V47: podman is required for rootless container builds. Nested container escape
+  # is mitigated by: (1) seccomp blocking namespace syscalls, (2) Landlock restricting
+  # filesystem access, (3) no --privileged capability in the sandbox.
+  - /usr/bin/podman
+  - /usr/bin/skopeo
+  - /usr/bin/cat
+  - /usr/bin/ls
+  - /usr/bin/grep
+  - /usr/bin/find
+  - /usr/bin/tar
+  - /usr/bin/gzip
+
+# T24: Expanded exec_denylist — privilege escalation + exfiltration vectors
+exec_denylist:
+  - nsenter
+  - unshare
+  - chroot
+  - mount
+  - strace
+  - gdb
+  - su
+  - sudo
+  - pkexec
+  - dd
+  - nc
+  - ncat
+  - socat
+  - capsh
+  - setcap
+  - modprobe
+  - insmod
+  - kexec
+  - bpftool
+  - runc
+  - criu
+
+resource_limits:
+  memory_bytes: 1073741824     # 1 GiB
+  cpu_shares: 150
+  io_weight: 150
+  max_pids: 128
+  storage_quota_mb: 4096
+  inode_quota: 50000
+
+network:
+  mode: Gated
+  allowed_domains:
+    - registry.redhat.io
+    - quay.io
+    - registry-1.docker.io
+    - production.cloudflare.docker.com
+    - ghcr.io
+
+behavioral:
+  max_deletions: 50
+  max_reads_per_minute: 2000
+  credential_access_alert: true
+
+seccomp_mode: Permissive
+allow_symlinks: false
+
+fail_mode: FailClosed

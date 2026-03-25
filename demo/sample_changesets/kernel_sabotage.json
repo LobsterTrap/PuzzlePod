@@ -1,0 +1,50 @@
+[
+  {
+    "path": "/boot/vmlinuz-6.12.0",
+    "kind": "Modified",
+    "size": 12582912,
+    "checksum": "ab01cd23ef45ab01cd23ef45ab01cd23ef45ab01cd23ef45ab01cd23ef45ab01"
+  },
+  {
+    "path": "/lib/modules/6.12.0/kernel/rogue.ko",
+    "kind": "Added",
+    "size": 8192,
+    "checksum": "cd23ef45ab01cd23ef45ab01cd23ef45ab01cd23ef45ab01cd23ef45ab01cd23"
+  },
+  {
+    "path": "/etc/cron.d/kernel-backdoor",
+    "kind": "Added",
+    "size": 64,
+    "checksum": "ef45ab01cd23ef45ab01cd23ef45ab01cd23ef45ab01cd23ef45ab01cd23ef45"
+  },
+  {
+    "path": "/etc/sudoers.d/agent-root",
+    "kind": "Added",
+    "size": 32,
+    "checksum": "1234abcd5678ef001234abcd5678ef001234abcd5678ef001234abcd5678ef00"
+  },
+  {
+    "path": "/etc/systemd/system/rogue-persist.service",
+    "kind": "Added",
+    "size": 128,
+    "checksum": "5678ef001234abcd5678ef001234abcd5678ef001234abcd5678ef001234abcd"
+  },
+  {
+    "path": "/usr/bin/rogue-escalate",
+    "kind": "Added",
+    "size": 4096,
+    "checksum": "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789"
+  },
+  {
+    "path": ".env",
+    "kind": "Added",
+    "size": 256,
+    "checksum": "fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210"
+  },
+  {
+    "path": "src/legitimate_code.py",
+    "kind": "Added",
+    "size": 512,
+    "checksum": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+  }
+]

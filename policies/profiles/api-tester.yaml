@@ -1,0 +1,99 @@
+name: api-tester
+description: >
+  Profile for API testing and validation agents. Gated network access to
+  specific target API endpoints. Supports curl, Python HTTP libraries, and
+  HTTPie for constructing and sending API requests.
+
+filesystem:
+  read_allowlist:
+    - /usr/share
+    - /usr/lib
+    - /usr/lib64
+    - /etc/ssl/certs
+    - /etc/pki/tls
+    - /etc/resolv.conf
+    - /etc/alternatives
+  write_allowlist: []
+  denylist:
+    - /etc/shadow
+    - /etc/gshadow
+    - /etc/ssh
+    - /root/.ssh
+    - /etc/sudoers
+    - /etc/sudoers.d
+  # N15: Defense-in-depth read/write denylists
+  read_denylist:
+    - /etc/shadow
+    - /etc/gshadow
+    - /etc/sudoers
+    - /etc/sudoers.d
+  write_denylist:
+    - /etc
+    - /usr
+    - /boot
+    - /sbin
+    - /bin
+    - /lib
+    - /lib64
+    - /var/log
+    - /root
+
+exec_allowlist:
+  - /usr/bin/curl
+  - /usr/bin/python3
+  - /usr/bin/http
+  - /usr/bin/https
+  - /usr/bin/cat
+  - /usr/bin/ls
+  - /usr/bin/head
+  - /usr/bin/tail
+  - /usr/bin/grep
+  - /usr/bin/jq
+  - /usr/bin/wc
+  - /usr/bin/diff
+
+# T24: Expanded exec_denylist — privilege escalation + exfiltration vectors
+exec_denylist:
+  - nsenter
+  - unshare
+  - chroot
+  - mount
+  - strace
+  - gdb
+  - su
+  - sudo
+  - pkexec
+  - dd
+  - nc
+  - ncat
+  - socat
+  - capsh
+  - setcap
+  - modprobe
+  - insmod
+  - kexec
+  - bpftool
+
+resource_limits:
+  memory_bytes: 268435456      # 256 MiB
+  cpu_shares: 80
+  io_weight: 80
+  max_pids: 32
+  storage_quota_mb: 256
+  inode_quota: 2000
+
+network:
+  mode: Gated
+  allowed_domains:
+    - api.example.com
+    - staging-api.example.com
+
+behavioral:
+  max_deletions: 10
+  max_reads_per_minute: 500
+  credential_access_alert: true
+
+seccomp_mode: Permissive
+allow_symlinks: false
+
+fail_mode: FailClosed

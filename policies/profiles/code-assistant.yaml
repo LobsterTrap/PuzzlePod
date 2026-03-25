@@ -1,0 +1,112 @@
+name: code-assistant
+description: >
+  General-purpose coding assistant profile for software development agents.
+  Gated network access to package registries and source hosting. Supports
+  multiple languages including C/C++, Python, Node.js, and Rust.
+
+filesystem:
+  read_allowlist:
+    - /usr/share
+    - /usr/lib
+    - /usr/lib64
+    - /usr/include
+    - /etc/alternatives
+    - /etc/ld.so.cache
+    - /etc/ld.so.conf.d
+  write_allowlist: []
+  denylist:
+    - /etc/shadow
+    - /etc/gshadow
+    - /etc/ssh
+    - /root/.ssh
+    - /etc/sudoers
+    - /etc/sudoers.d
+  # N15: Defense-in-depth read/write denylists
+  read_denylist:
+    - /etc/shadow
+    - /etc/gshadow
+    - /etc/sudoers
+    - /etc/sudoers.d
+  write_denylist:
+    - /etc
+    - /usr
+    - /boot
+    - /sbin
+    - /bin
+    - /lib
+    - /lib64
+    - /var/log
+    - /root
+
+exec_allowlist:
+  - /usr/bin/gcc
+  - /usr/bin/g++
+  - /usr/bin/python3
+  - /usr/bin/node
+  - /usr/bin/cargo
+  - /usr/bin/rustc
+  - /usr/bin/git
+  - /usr/bin/make
+  - /usr/bin/cmake
+  - /usr/bin/cat
+  - /usr/bin/ls
+  - /usr/bin/head
+  - /usr/bin/tail
+  - /usr/bin/grep
+  - /usr/bin/find
+  - /usr/bin/wc
+  - /usr/bin/sort
+  - /usr/bin/sed
+  - /usr/bin/awk
+  - /usr/bin/diff
+
+# T24: Expanded exec_denylist — privilege escalation + exfiltration vectors
+exec_denylist:
+  - nsenter
+  - unshare
+  - chroot
+  - mount
+  - strace
+  - gdb
+  - su
+  - sudo
+  - pkexec
+  - dd
+  - nc
+  - ncat
+  - socat
+  - capsh
+  - setcap
+  - modprobe
+  - insmod
+  - kexec
+  - bpftool
+
+resource_limits:
+  memory_bytes: 536870912      # 512 MiB
+  cpu_shares: 100
+  io_weight: 100
+  max_pids: 64
+  storage_quota_mb: 1024
+  inode_quota: 10000
+
+network:
+  mode: Gated
+  allowed_domains:
+    - github.com
+    - api.github.com
+    - pypi.org
+    - files.pythonhosted.org
+    - registry.npmjs.org
+    - crates.io
+    - static.crates.io
+
+behavioral:
+  max_deletions: 50
+  max_reads_per_minute: 1000
+  credential_access_alert: true
+
+seccomp_mode: Permissive
+allow_symlinks: false
+
+fail_mode: FailClosed

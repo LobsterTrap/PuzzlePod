@@ -1,0 +1,124 @@
+## <summary>PuzzlePod policy interfaces.</summary>
+
+########################################
+## <summary>
+##	Perform a domain transition into the puzzled daemon domain.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed to transition.
+##	</summary>
+## </param>
+#
+interface(`puzzlepod_domtrans',`
+	gen_require(`
+		type puzzlepod_t, puzzled_exec_t;
+	')
+
+	corecmd_search_bin($1)
+	domtrans_pattern($1, puzzled_exec_t, puzzlepod_t)
+')
+
+########################################
+## <summary>
+##	Execute puzzled in the puzzled domain (systemd/init usage).
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed to transition.
+##	</summary>
+## </param>
+#
+interface(`puzzle_initrc_domtrans',`
+	gen_require(`
+		type puzzlepod_t, puzzled_exec_t;
+	')
+
+	init_labeled_script_domtrans($1, puzzled_exec_t)
+')
+
+########################################
+## <summary>
+##	Grant admin access to PuzzlePod resources.
+## </summary>
+## <desc>
+##	<p>
+##	Allow the specified domain to manage puzzled
+##	configuration, state, and branches. Typically
+##	granted to sysadm_t or a dedicated admin role.
+##	</p>
+## </desc>
+## <param name="domain">
+##	<summary>
+##	Domain to grant admin access.
+##	</summary>
+## </param>
+## <param name="role">
+##	<summary>
+##	Role allowed to access puzzlectl.
+##	</summary>
+## </param>
+#
+interface(`puzzlepod_admin',`
+	gen_require(`
+		type puzzlepod_t, puzzled_conf_t, puzzled_var_lib_t;
+		type puzzled_wal_t, puzzlepod_branch_t;
+		type puzzlectl_t, puzzlectl_exec_t;
+	')
+
+	# Allow running puzzlectl
+	domtrans_pattern($1, puzzlectl_exec_t, puzzlectl_t)
+	role $2 types puzzlectl_t;
+
+	# Allow managing configuration
+	admin_pattern($1, puzzled_conf_t)
+
+	# Allow managing state and branches
+	admin_pattern($1, puzzled_var_lib_t)
+	admin_pattern($1, puzzled_wal_t)
+	admin_pattern($1, puzzlepod_branch_t)
+
+	# Allow signaling puzzled
+	allow $1 puzzlepod_t:process { ptrace signal_perms };
+	ps_process_pattern($1, puzzlepod_t)
+')
+
+########################################
+## <summary>
+##	Send D-Bus messages to puzzled.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed to send D-Bus messages.
+##	</summary>
+## </param>
+#
+interface(`puzzlepod_dbus_chat',`
+	gen_require(`
+		type puzzlepod_t;
+		class dbus send_msg;
+	')
+
+	allow $1 puzzlepod_t:dbus send_msg;
+	allow puzzlepod_t $1:dbus send_msg;
+')
+
+########################################
+## <summary>
+##	Read puzzled configuration files.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed to read.
+##	</summary>
+## </param>
+#
+interface(`puzzlepod_read_config',`
+	gen_require(`
+		type puzzled_conf_t;
+	')
+
+	files_search_etc($1)
+	allow $1 puzzled_conf_t:dir list_dir_perms;
+	allow $1 puzzled_conf_t:file read_file_perms;
+')

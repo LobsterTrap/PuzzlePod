@@ -1,0 +1,78 @@
+name: summit-demo
+description: >
+  Profile tuned for the Summit demo bad-agent scenario.
+  Allows Python and basic tools in workspace, blocks sensitive paths,
+  gates network access.
+
+filesystem:
+  read_allowlist:
+    - /usr/bin
+    - /usr/share
+    - /usr/lib
+    - /usr/lib64
+    - /usr/include
+    - /etc/alternatives
+    - /etc/localtime
+    - /etc/resolv.conf
+    - /etc/ld.so.cache
+    - /etc/os-release
+    - /proc/self
+    - /proc/version
+    - /dev/null
+    - /dev/urandom
+    # Container-specific paths (needed for Landlock inside container):
+    - /app              # bad-agent.py script location
+    - /workspace        # agent reads its own workspace
+    - /tmp              # Python runtime temp files
+  write_allowlist:
+    - /workspace        # agent writes here (bind-mounted OverlayFS merged dir)
+    - /tmp              # Python runtime temp files
+  denylist:
+    - /etc/shadow
+    - /etc/gshadow
+    - /etc/ssh
+    - /root/.ssh
+
+exec_allowlist:
+  - /usr/bin/python3
+  - /usr/bin/python3.13
+  - /usr/bin/cat
+  - /usr/bin/ls
+  - /usr/bin/head
+  - /usr/bin/tail
+  - /usr/bin/grep
+
+# curl is NOT in exec_allowlist — seccomp USER_NOTIF will gate execve("curl")
+# Network access is gated — evil.example.com is not in allowed_domains
+
+exec_denylist:
+  - nsenter
+  - unshare
+  - chroot
+  - mount
+  - strace
+  - gdb
+  - curl
+
+resource_limits:
+  memory_bytes: 268435456      # 256 MiB
+  cpu_shares: 100
+  io_weight: 100
+  max_pids: 32
+  storage_quota_mb: 512
+  inode_quota: 5000
+
+network:
+  mode: Gated
+  allowed_domains:
+    - pypi.org
+    - files.pythonhosted.org
+
+behavioral:
+  max_deletions: 10
+  max_reads_per_minute: 500
+  credential_access_alert: true
+
+fail_mode: FailClosed
+seccomp_mode: Permissive
+allow_symlinks: false

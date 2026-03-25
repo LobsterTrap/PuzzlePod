@@ -1,0 +1,29 @@
+# puzzled configuration
+# Copy to /etc/puzzled/puzzled.conf and adjust as needed.
+
+# Root directory for branch storage (OverlayFS upper layers, work dirs, WAL).
+# Must be on an XFS filesystem for project quota support.
+branch_root: /var/lib/puzzled/branches
+
+# Directory containing agent profile YAML files.
+profiles_dir: /etc/puzzled/profiles
+
+# Directory containing OPA/Rego policy bundles.
+policies_dir: /etc/puzzled/policies
+
+# Maximum number of concurrent branches.
+max_branches: 64
+
+# D-Bus bus type: "system" (production) or "session" (development).
+bus_type: system
+
+# Filesystem type for branch storage.
+# "xfs" is recommended for project quota support.
+fs_type: xfs
+
+# Log level: trace, debug, info, warn, error.
+log_level: info
+
+# Watchdog timeout in seconds (0 = disabled).
+# puzzled sends sd_notify(WATCHDOG=1) at half this interval.
+watchdog_timeout_secs: 30

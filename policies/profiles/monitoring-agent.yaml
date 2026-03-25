@@ -1,0 +1,101 @@
+name: monitoring-agent
+description: >
+  Profile for system monitoring and alerting agents. Gated network access to
+  Prometheus and Grafana endpoints for metrics collection and dashboard
+  management. Read-only access to system metrics.
+
+filesystem:
+  read_allowlist:
+    - /usr/bin
+    - /usr/share
+    - /usr/lib
+    - /usr/lib64
+    - /etc/alternatives
+    - /proc/stat
+    - /proc/meminfo
+    - /proc/loadavg
+    - /proc/diskstats
+    - /sys/class/thermal
+  write_allowlist: []
+  denylist:
+    - /etc/shadow
+    - /etc/gshadow
+    - /etc/ssh
+    - /root/.ssh
+    - /etc/sudoers
+    - /etc/sudoers.d
+    - /proc/sysrq-trigger
+  # N15: Defense-in-depth read/write denylists
+  read_denylist:
+    - /etc/shadow
+    - /etc/gshadow
+    - /etc/sudoers
+    - /etc/sudoers.d
+  write_denylist:
+    - /etc
+    - /usr
+    - /boot
+    - /sbin
+    - /bin
+    - /lib
+    - /lib64
+    - /var/log
+    - /root
+
+exec_allowlist:
+  - /usr/bin/curl
+  - /usr/bin/python3
+  - /usr/bin/cat
+  - /usr/bin/ls
+  - /usr/bin/head
+  - /usr/bin/tail
+  - /usr/bin/grep
+  - /usr/bin/jq
+  - /usr/bin/wc
+
+# T24: Expanded exec_denylist — privilege escalation + exfiltration vectors
+exec_denylist:
+  - nsenter
+  - unshare
+  - chroot
+  - mount
+  - strace
+  - gdb
+  - su
+  - sudo
+  - pkexec
+  - dd
+  - nc
+  - ncat
+  - socat
+  - capsh
+  - setcap
+  - modprobe
+  - insmod
+  - kexec
+  - bpftool
+
+resource_limits:
+  memory_bytes: 268435456      # 256 MiB
+  cpu_shares: 50
+  io_weight: 50
+  max_pids: 16
+  storage_quota_mb: 256
+  inode_quota: 2000
+
+network:
+  mode: Gated
+  allowed_domains:
+    - prometheus.local
+    - grafana.local
+    - alertmanager.local
+
+behavioral:
+  max_deletions: 5
+  max_reads_per_minute: 3000
+  credential_access_alert: true
+
+seccomp_mode: Permissive
+allow_symlinks: false
+
+fail_mode: FailClosed

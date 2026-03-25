@@ -1,0 +1,100 @@
+name: ml-training
+description: >
+  Profile for machine learning training and fine-tuning agents. Large memory
+  allocation (4 GiB) for model weights and datasets. Gated network access
+  to Python packages and Hugging Face model hub. GPU monitoring via nvidia-smi.
+
+filesystem:
+  read_allowlist:
+    - /usr/share
+    - /usr/lib
+    - /usr/lib64
+    - /usr/include
+    - /etc/alternatives
+    - /dev/nvidia0
+    - /dev/nvidiactl
+    - /dev/nvidia-uvm
+  write_allowlist:
+    - /tmp
+  denylist:
+    - /etc/shadow
+    - /etc/gshadow
+    - /etc/ssh
+    - /root/.ssh
+    - /etc/sudoers
+    - /etc/sudoers.d
+  # N15: Defense-in-depth read/write denylists
+  read_denylist:
+    - /etc/shadow
+    - /etc/gshadow
+    - /etc/sudoers
+    - /etc/sudoers.d
+  write_denylist:
+    - /etc
+    - /usr
+    - /boot
+    - /sbin
+    - /bin
+    - /lib
+    - /lib64
+    - /var/log
+    - /root
+
+exec_allowlist:
+  - /usr/bin/python3
+  - /usr/bin/nvidia-smi
+  - /usr/bin/cat
+  - /usr/bin/ls
+  - /usr/bin/head
+  - /usr/bin/tail
+  - /usr/bin/grep
+  - /usr/bin/wc
+
+# T24: Expanded exec_denylist — privilege escalation + exfiltration vectors
+exec_denylist:
+  - nsenter
+  - unshare
+  - chroot
+  - mount
+  - strace
+  - gdb
+  - su
+  - sudo
+  - pkexec
+  - dd
+  - nc
+  - ncat
+  - socat
+  - capsh
+  - setcap
+  - modprobe
+  - insmod
+  - kexec
+  - bpftool
+
+resource_limits:
+  memory_bytes: 4294967296     # 4 GiB
+  cpu_shares: 200
+  io_weight: 150
+  max_pids: 64
+  storage_quota_mb: 8192
+  inode_quota: 50000
+
+network:
+  mode: Gated
+  allowed_domains:
+    - pypi.org
+    - files.pythonhosted.org
+    - huggingface.co
+    - cdn-lfs.huggingface.co
+    - cdn-lfs-us-1.huggingface.co
+
+behavioral:
+  max_deletions: 30
+  max_reads_per_minute: 2000
+  credential_access_alert: true
+
+seccomp_mode: Permissive
+allow_symlinks: false
+
+fail_mode: FailClosed

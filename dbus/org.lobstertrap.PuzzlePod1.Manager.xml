@@ -1,0 +1,612 @@
+<!DOCTYPE node PUBLIC "-//freedesktop//DTD D-BUS Object Introspection 1.0//EN"
+  "http://www.freedesktop.org/standards/dbus/1.0/introspect.dtd">
+
+<!--
+  org.lobstertrap.PuzzlePod1.Manager - D-Bus interface for the PuzzlePod governance daemon.
+
+  This interface is served by puzzled on the system bus at the object path
+  /org/lobstertrap/PuzzlePod1/Manager. It provides methods for agent branch lifecycle
+  management, policy evaluation, and audit event queries.
+
+  All methods are idempotent. JSON strings are used for structured input/output
+  to maintain forward compatibility.
+
+  Originally designed at Red Hat LLC by Francis Chow (@openchow) and Adam Miller (@maxamillion)
+  Licensed under Apache-2.0
+-->
+
+<node name="/org/lobstertrap/PuzzlePod1/Manager">
+  <interface name="org.lobstertrap.PuzzlePod1.Manager">
+
+    <!-- ============================================================
+         Branch Lifecycle Methods
+         ============================================================ -->
+
+    <!--
+      CreateBranch: Create a new agent sandbox branch.
+
+      @profile:       Name of the agent profile (must exist in profiles_dir).
+      @base_path:     Filesystem path to use as the OverlayFS lower layer.
+      @command_json:  JSON array of command and arguments to execute in the
+                      sandbox, e.g. '["python3", "main.py"]'.
+      @branch_id:     The unique identifier for the created branch.
+
+      Creates a new process via clone3() with PID, mount, and network
+      namespace isolation. Sets up OverlayFS, Landlock, seccomp-BPF,
+      cgroup limits, BPF LSM hooks, and fanotify monitoring according
+      to the specified profile.
+    -->
+    <method name="CreateBranch">
+      <arg name="profile" type="s" direction="in"/>
+      <arg name="base_path" type="s" direction="in"/>
+      <arg name="command_json" type="s" direction="in"/>
+      <!-- m1: Returns JSON-serialized BranchInfo, not just branch_id -->
+      <arg name="branch_info_json" type="s" direction="out"/>
+    </method>
+
+    <!--
+      CommitBranch: Commit a branch's changes to the base filesystem.
+
+      @branch_id:   The branch to commit.
+      @result_json: JSON object with commit result, including policy
+                    evaluation outcome and any violations.
+
+      Freezes the agent via cgroup.freeze, walks the OverlayFS upper
+      layer to generate a diff, evaluates OPA/Rego governance policies,
+      and if approved, commits via a WAL-based crash-safe procedure.
+      If the policy rejects the commit, returns the violations in the
+      result JSON and the branch is not committed.
+    -->
+    <method name="CommitBranch">
+      <arg name="branch_id" type="s" direction="in"/>
+      <arg name="result_json" type="s" direction="out"/>
+    </method>
+
+    <!--
+      RollbackBranch: Roll back a branch, discarding all changes.
+
+      @branch_id: The branch to roll back.
+      @reason:    Human-readable reason for the rollback (logged in audit trail).
+      @success:   True if the rollback completed successfully.
+
+      Discards the OverlayFS upper layer with zero residue. Terminates
+      the agent process if still running. For committed branches,
+      reverses the commit using the WAL journal.
+    -->
+    <method name="RollbackBranch">
+      <arg name="branch_id" type="s" direction="in"/>
+      <arg name="reason" type="s" direction="in"/>
+      <arg name="success" type="b" direction="out"/>
+    </method>
+
+    <!--
+      InspectBranch: Get detailed information about a branch.
+
+      @branch_id:   The branch to inspect.
+      @info_json:   JSON object with branch details: profile, status,
+                    creation time, agent PID, namespace IDs, cgroup path,
+                    resource usage, and changeset summary.
+    -->
+    <method name="InspectBranch">
+      <arg name="branch_id" type="s" direction="in"/>
+      <arg name="info_json" type="s" direction="out"/>
+    </method>
+
+    <!--
+      ListBranches: List all active and recently completed branches.
+
+      @branches_json: JSON array of branch summary objects, each
+                      containing id, profile, status, created_at, and pid.
+    -->
+    <method name="ListBranches">
+      <arg name="branches_json" type="s" direction="out"/>
+    </method>
+
+    <!--
+      DiffBranch: Get the changeset diff for a branch.
+
+      @branch_id:  The branch to diff.
+      @diff_json:  JSON array of change objects, each containing path,
+                   kind (Created, Modified, Deleted, MetadataChanged),
+                   size, and checksum.
+
+      Walks the OverlayFS upper layer and filters copy-up artifacts
+      by checksum comparison with the lower layer.
+    -->
+    <method name="DiffBranch">
+      <arg name="branch_id" type="s" direction="in"/>
+      <arg name="diff_json" type="s" direction="out"/>
+    </method>
+
+    <!-- ============================================================
+         Agent Process Methods
+         ============================================================ -->
+
+    <!--
+      ListAgents: List all running agent processes.
+
+      @agents_json: JSON array of agent summary objects, each containing
+                    branch_id, pid, profile, uptime_secs, memory_bytes,
+                    and cpu_usage_percent.
+    -->
+    <method name="ListAgents">
+      <arg name="agents_json" type="s" direction="out"/>
+    </method>
+
+    <!--
+      KillAgent: Terminate the agent process for a branch.
+
+      @branch_id: The branch whose agent process to terminate.
+      @success:   True if the agent was successfully terminated.
+
+      Sends SIGKILL via pidfd_send_signal(). The PID namespace ensures
+      all child processes are cleaned up. The branch remains in a
+      terminated state and can be inspected, committed, or rolled back.
+    -->
+    <method name="KillAgent">
+      <arg name="branch_id" type="s" direction="in"/>
+      <arg name="success" type="b" direction="out"/>
+    </method>
+
+    <!-- ============================================================
+         Governance Methods
+         ============================================================ -->
+
+    <!--
+      ApproveBranch: Approve a branch in GovernanceReview state.
+
+      @branch_id:   The branch to approve.
+      @result_json: JSON object with commit result (same format as CommitBranch).
+
+      Root-only (UID 0). Transitions the branch from GovernanceReview
+      to Committed, applying the pending changeset to the base filesystem.
+    -->
+    <method name="ApproveBranch">
+      <arg name="branch_id" type="s" direction="in"/>
+      <arg name="result_json" type="s" direction="out"/>
+    </method>
+
+    <!--
+      RejectBranch: Reject a branch in GovernanceReview state.
+
+      @branch_id: The branch to reject.
+      @reason:    Human-readable reason for rejection (logged in audit trail).
+      @success:   True if the rejection completed successfully.
+
+      Root-only (UID 0). Transitions the branch from GovernanceReview
+      to RolledBack, discarding all changes.
+    -->
+    <method name="RejectBranch">
+      <arg name="branch_id" type="s" direction="in"/>
+      <arg name="reason" type="s" direction="in"/>
+      <arg name="success" type="b" direction="out"/>
+    </method>
+
+    <!-- ============================================================
+         Agent Lifecycle Methods
+         ============================================================ -->
+
+    <!--
+      UnregisterAgent: Unregister an agent by rolling back its branch.
+
+      @branch_id: The branch to unregister.
+      @success:   True if the unregistration completed successfully.
+
+      Calls rollback with reason "unregistered". The branch transitions
+      to RolledBack state and all changes are discarded.
+    -->
+    <method name="UnregisterAgent">
+      <arg name="branch_id" type="s" direction="in"/>
+      <arg name="success" type="b" direction="out"/>
+    </method>
+
+    <!--
+      AgentInfo: Get detailed agent process information for a branch.
+
+      @branch_id:       The branch whose agent to query.
+      @agent_info_json: JSON object with pid, state, profile, created_at,
+                        uid, and cgroup_path.
+    -->
+    <method name="AgentInfo">
+      <arg name="branch_id" type="s" direction="in"/>
+      <arg name="agent_info_json" type="s" direction="out"/>
+    </method>
+
+    <!--
+      ActivateBranch: Spawn a sandboxed process in a pre-created branch.
+
+      @branch_id:    The branch to activate (must be in Ready state).
+      @command_json: JSON array of command and arguments to execute in the
+                     sandbox, e.g. '["python3", "main.py"]'.
+      @info_json:    JSON object with updated branch details (state
+                     transitions to Active, pid is populated).
+
+      Requires that CreateBranch was called first. Sets up cgroup, clone3,
+      seccomp-BPF, Landlock, network namespace, BPF LSM hooks, and
+      fanotify monitoring. Transitions the branch from Ready to Active.
+    -->
+    <method name="ActivateBranch">
+      <arg name="branch_id" type="s" direction="in"/>
+      <arg name="command_json" type="s" direction="in"/>
+      <arg name="info_json" type="s" direction="out"/>
+    </method>
+
+    <!-- ============================================================
+         Policy Methods
+         ============================================================ -->
+
+    <!--
+      ReloadPolicy: Reload OPA/Rego policies and agent profiles from disk.
+
+      @success:        True if policies were successfully reloaded.
+      @detail_message: Human-readable detail about the reload result
+                       (success message or error description).
+
+      Re-reads all .rego files from policies_dir and all .yaml files
+      from profiles_dir. Active branches are not affected; new policy
+      takes effect on the next commit evaluation.
+    -->
+    <method name="ReloadPolicy">
+      <arg name="success" type="b" direction="out"/>
+      <arg name="detail_message" type="s" direction="out"/>
+    </method>
+
+    <!-- ============================================================
+         Audit Methods
+         ============================================================ -->
+
+    <!--
+      QueryAuditEvents: Query audit events with filtering.
+
+      @filter_json:  JSON object with optional filter fields: branch_id,
+                     event_type, since (ISO 8601), until (ISO 8601),
+                     limit (integer).
+      @events_json:  JSON array of matching audit event objects.
+    -->
+    <method name="QueryAuditEvents">
+      <arg name="filter_json" type="s" direction="in"/>
+      <arg name="events_json" type="s" direction="out"/>
+    </method>
+
+    <!--
+      ExportAuditEvents: Export audit events in a specified format.
+
+      @format:       Export format: "json", "csv", or "cel".
+      @export_data:  The exported audit data as a string in the
+                     requested format.
+    -->
+    <method name="ExportAuditEvents">
+      <arg name="format" type="s" direction="in"/>
+      <arg name="export_data" type="s" direction="out"/>
+    </method>
+
+    <!-- ============================================================
+         Attestation Methods (§3.1)
+         ============================================================ -->
+
+    <!--
+      VerifyAttestationChain: Verify the attestation chain for a branch.
+
+      @branch_id:   The branch whose attestation chain to verify.
+      @result_json: JSON object with verification results including
+                    chain length, signature validity, and status.
+    -->
+    <method name="VerifyAttestationChain">
+      <arg name="branch_id" type="s" direction="in"/>
+      <arg name="result_json" type="s" direction="out"/>
+    </method>
+
+    <!--
+      GetInclusionProof: Get Merkle inclusion proof for an audit event.
+
+      @leaf_index: Merkle leaf index of the audit event.
+      @proof_json: JSON object with the Merkle inclusion proof.
+    -->
+    <method name="GetInclusionProof">
+      <arg name="leaf_index" type="t" direction="in"/>
+      <arg name="proof_json" type="s" direction="out"/>
+    </method>
+
+    <!--
+      GetConsistencyProof: Get Merkle consistency proof between two tree sizes.
+
+      @old_size:   The older (smaller) tree size.
+      @new_size:   The newer (larger) tree size.
+      @proof_json: JSON object with the Merkle consistency proof.
+    -->
+    <method name="GetConsistencyProof">
+      <arg name="old_size" type="t" direction="in"/>
+      <arg name="new_size" type="t" direction="in"/>
+      <arg name="proof_json" type="s" direction="out"/>
+    </method>
+
+    <!--
+      ExportAttestationBundle: Export a self-contained, offline-verifiable
+      attestation bundle for a branch.
+
+      @branch_id:    The branch to export the attestation bundle for.
+      @bundle_json:  JSON object with version, branch_id, and bundle data.
+    -->
+    <method name="ExportAttestationBundle">
+      <arg name="branch_id" type="s" direction="in"/>
+      <arg name="bundle_json" type="s" direction="out"/>
+    </method>
+
+    <!--
+      GetAttestationPublicKey: Get the current attestation public key.
+
+      @public_key: Hex-encoded Ed25519 public key string. Empty if no
+                   key is configured.
+    -->
+    <method name="GetAttestationPublicKey">
+      <arg name="public_key" type="s" direction="out"/>
+    </method>
+
+    <!-- ============================================================
+         Credential Management Methods (§3.4)
+         ============================================================ -->
+
+    <!--
+      StoreCredential: Store a credential for phantom token injection.
+
+      @profile_name:    Agent profile to scope the credential to.
+      @domain:          Target domain (e.g., "api.github.com").
+      @credential_json: JSON-serialized credential (type, secret, injection method).
+      @phantom_token:   Phantom token string that the agent should use instead
+                        of the real credential. The proxy resolves this token
+                        to the real credential at request time.
+    -->
+    <method name="StoreCredential">
+      <arg name="profile_name" type="s" direction="in"/>
+      <arg name="domain" type="s" direction="in"/>
+      <arg name="credential_json" type="s" direction="in"/>
+      <arg name="phantom_token" type="s" direction="out"/>
+    </method>
+
+    <!--
+      RemoveCredential: Remove a credential by phantom token.
+
+      @phantom_token: The phantom token of the credential to remove.
+      @success:       True if the credential was successfully removed.
+    -->
+    <method name="RemoveCredential">
+      <arg name="phantom_token" type="s" direction="in"/>
+      <arg name="success" type="b" direction="out"/>
+    </method>
+
+    <!--
+      RotateCredential: Rotate a credential behind a phantom token.
+
+      @phantom_token:       The phantom token whose real credential to replace.
+      @new_credential_json: JSON-serialized new credential (type, secret,
+                            injection method). The phantom token stays the
+                            same; only the real credential changes.
+      @success:             True if the credential was successfully rotated.
+    -->
+    <method name="RotateCredential">
+      <arg name="phantom_token" type="s" direction="in"/>
+      <arg name="new_credential_json" type="s" direction="in"/>
+      <arg name="success" type="b" direction="out"/>
+    </method>
+
+    <!--
+      ListCredentials: List credentials for a profile.
+
+      @profile_name:     Agent profile to list credentials for.
+      @credentials_json: JSON array of credential summary objects, each
+                         containing phantom_token and domain. Real secrets
+                         are NEVER returned via this method.
+    -->
+    <method name="ListCredentials">
+      <arg name="profile_name" type="s" direction="in"/>
+      <arg name="credentials_json" type="s" direction="out"/>
+    </method>
+
+    <!-- ============================================================
+         Podman-Native Mode Methods
+         ============================================================ -->
+
+    <!--
+      GenerateSeccompProfile: Generate an OCI seccomp profile for a branch.
+
+      @branch_id:    The branch to generate a profile for.
+      @profile_path: Filesystem path to the generated seccomp.json.
+
+      Generates an OCI-format JSON seccomp profile with SCMP_ACT_NOTIFY
+      for execve/connect/bind, static deny for escape-vector syscalls,
+      and listenerPath for puzzled's seccomp notification socket.
+    -->
+    <method name="GenerateSeccompProfile">
+      <arg name="branch_id" type="s" direction="in"/>
+      <arg name="profile_path" type="s" direction="out"/>
+    </method>
+
+    <!--
+      GenerateLandlockRules: Generate Landlock rules JSON for a branch.
+
+      @branch_id:  The branch to generate rules for.
+      @rules_path: Filesystem path to the generated landlock.json.
+
+      Generates a JSON file consumed by the puzzle-init shim inside
+      the container to apply irrevocable Landlock filesystem restrictions.
+    -->
+    <method name="GenerateLandlockRules">
+      <arg name="branch_id" type="s" direction="in"/>
+      <arg name="rules_path" type="s" direction="out"/>
+    </method>
+
+    <!--
+      AttachGovernance: Attach governance to a running container.
+
+      @branch_id:     The branch to attach governance to.
+      @container_pid: PID of the container's init process.
+      @container_id:  Container ID (from OCI state).
+      @success:       True if governance was successfully attached.
+
+      Called by the OCI hook at createRuntime stage. Registers the
+      container PID, starts BPF LSM hooks and fanotify monitoring.
+    -->
+    <method name="AttachGovernance">
+      <arg name="branch_id" type="s" direction="in"/>
+      <arg name="container_pid" type="u" direction="in"/>
+      <arg name="container_id" type="s" direction="in"/>
+      <arg name="success" type="b" direction="out"/>
+    </method>
+
+    <!--
+      TriggerGovernance: Trigger governance evaluation for a branch.
+
+      @branch_id:   The branch to evaluate.
+      @result_json: JSON object with governance result.
+
+      Called by the OCI hook at poststop stage. Runs the full governance
+      flow: freeze, diff, OPA evaluate, WAL commit or rollback.
+    -->
+    <method name="TriggerGovernance">
+      <arg name="branch_id" type="s" direction="in"/>
+      <arg name="result_json" type="s" direction="out"/>
+    </method>
+
+    <!--
+      EnsureBranch: Idempotent branch creation.
+
+      @profile:   Agent profile name.
+      @base_path: Base filesystem path for the OverlayFS lower layer.
+      @branch_id: The branch ID (existing or newly created).
+
+      Creates a branch if one doesn't exist for the given profile and
+      base_path; returns the existing branch ID if one does. Designed
+      for use in Quadlet ExecStartPre for idempotent container startup.
+    -->
+    <method name="EnsureBranch">
+      <arg name="profile" type="s" direction="in"/>
+      <arg name="base_path" type="s" direction="in"/>
+      <!-- m2: Returns JSON-serialized BranchInfo for consistency -->
+      <arg name="branch_info_json" type="s" direction="out"/>
+    </method>
+
+    <!-- ============================================================
+         Signals
+         ============================================================ -->
+
+    <!--
+      BranchCreated: Emitted when a new branch is successfully created.
+
+      @branch_id: The unique identifier of the created branch.
+      @profile:   The agent profile name used for this branch.
+    -->
+    <signal name="BranchCreated">
+      <arg name="branch_id" type="s"/>
+      <arg name="profile" type="s"/>
+    </signal>
+
+    <!--
+      BranchCommitted: Emitted when a branch is successfully committed.
+
+      @branch_id:      The unique identifier of the committed branch.
+      @changeset_hash: SHA-256 hash of the committed changeset metadata.
+      @profile:        The agent profile name used for this branch.
+    -->
+    <signal name="BranchCommitted">
+      <arg name="branch_id" type="s"/>
+      <arg name="changeset_hash" type="s"/>
+      <arg name="profile" type="s"/>
+    </signal>
+
+    <!--
+      BranchRolledBack: Emitted when a branch is rolled back.
+
+      @branch_id: The unique identifier of the rolled-back branch.
+      @reason:    Human-readable reason for the rollback.
+    -->
+    <signal name="BranchRolledBack">
+      <arg name="branch_id" type="s"/>
+      <arg name="reason" type="s"/>
+    </signal>
+
+    <!--
+      PolicyViolation: Emitted when a commit is rejected by policy.
+
+      @branch_id:       The branch whose commit was rejected.
+      @violations_json: JSON array of violation objects, each containing
+                        rule, message, and severity.
+      @changeset_hash:  SHA-256 hash of the rejected changeset metadata.
+      @reason:          Human-readable summary of the rejection.
+      @profile:         The agent profile name used for this branch.
+    -->
+    <signal name="PolicyViolation">
+      <arg name="branch_id" type="s"/>
+      <arg name="violations_json" type="s"/>
+      <arg name="changeset_hash" type="s"/>
+      <arg name="reason" type="s"/>
+      <arg name="profile" type="s"/>
+    </signal>
+
+    <!--
+      BehavioralTrigger: Emitted when a behavioral monitoring trigger fires.
+
+      @branch_id:    The branch that triggered the alert.
+      @trigger_json: JSON object containing trigger_type (mass_deletion,
+                     excessive_reads, credential_access), count, threshold,
+                     and timestamp.
+    -->
+    <signal name="BehavioralTrigger">
+      <arg name="branch_id" type="s"/>
+      <arg name="trigger_json" type="s"/>
+    </signal>
+
+    <!--
+      AgentTimeout: Emitted when an agent times out (watchdog expiry).
+
+      @branch_id:            The branch whose agent timed out.
+      @timeout_duration_secs: Duration of the timeout in seconds.
+    -->
+    <signal name="AgentTimeout">
+      <arg name="branch_id" type="s"/>
+      <arg name="timeout_duration_secs" type="t"/>
+    </signal>
+
+    <!--
+      GovernanceReviewPending: Emitted when a branch enters GovernanceReview
+      state and awaits human approval.
+
+      @branch_id:    The branch awaiting review.
+      @diff_summary: JSON object with file count, total bytes, and status.
+    -->
+    <signal name="GovernanceReviewPending">
+      <arg name="branch_id" type="s"/>
+      <arg name="diff_summary" type="s"/>
+    </signal>
+
+    <!--
+      BranchEvent: Generic branch event signal for extensible event notification.
+
+      @branch_id:    The branch that generated the event.
+      @event_type:   Event type string (e.g., "exit", "quota_exceeded",
+                     "lifetime_expired", "oom").
+      @details_json: JSON object with event-specific details.
+    -->
+    <signal name="BranchEvent">
+      <arg name="branch_id" type="s"/>
+      <arg name="event_type" type="s"/>
+      <arg name="details_json" type="s"/>
+    </signal>
+
+    <!--
+      DlpViolation: Emitted when a DLP (Data Loss Prevention) rule blocks
+      or quarantines an outbound request.
+
+      @branch_id: The branch that triggered the DLP violation.
+      @rule_name: Name of the DLP rule that was violated.
+      @action:    Action taken: "block" or "quarantine".
+      @domain:    Target domain of the blocked/quarantined request.
+    -->
+    <signal name="DlpViolation">
+      <arg name="branch_id" type="s"/>
+      <arg name="rule_name" type="s"/>
+      <arg name="action" type="s"/>
+      <arg name="domain" type="s"/>
+    </signal>
+
+  </interface>
+</node>

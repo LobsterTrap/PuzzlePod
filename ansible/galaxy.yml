@@ -1,0 +1,21 @@
+namespace: lobstertrap
+name: puzzlepod
+version: 0.2.0
+readme: README.md
+authors:
+  - Francis Chow
+description: Ansible collection for deploying and managing PuzzlePod
+license:
+  - Apache-2.0
+tags:
+  - linux
+  - security
+  - ai
+  - agent
+  - sandboxing
+repository: https://github.com/LobsterTrap/PuzzlePod
+documentation: https://github.com/LobsterTrap/PuzzlePod/tree/main/docs
+issues: https://github.com/LobsterTrap/PuzzlePod/issues
+dependencies: {}
+build_ignore:
+  - "*.tar.gz"

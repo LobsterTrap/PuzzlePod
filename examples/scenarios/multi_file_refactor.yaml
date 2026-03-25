@@ -1,0 +1,89 @@
+name: "Multi File Refactor"
+description: "Agent refactors the project by adding multiple modules and updating docs"
+profile: standard
+base_path: /tmp/puzzled-demo
+task: "Refactor project into clean module structure"
+expected_outcome: committed
+
+actions:
+  - type: write_file
+    path: src/__init__.py
+    description: "Create package init"
+    tags: [safe]
+    content: |
+      from .main import run
+
+  - type: write_file
+    path: src/models.py
+    description: "Add data models"
+    tags: [safe]
+    content: |
+      from dataclasses import dataclass
+
+      @dataclass
+      class User:
+          name: str
+          email: str
+
+      @dataclass
+      class Task:
+          title: str
+          assignee: User
+          done: bool = False
+
+  - type: write_file
+    path: src/services.py
+    description: "Add service layer"
+    tags: [safe]
+    content: |
+      from .models import User, Task
+
+      class TaskService:
+          def __init__(self):
+              self._tasks: list[Task] = []
+
+          def create(self, title: str, assignee: User) -> Task:
+              task = Task(title=title, assignee=assignee)
+              self._tasks.append(task)
+              return task
+
+          def list_open(self) -> list[Task]:
+              return [t for t in self._tasks if not t.done]
+
+  - type: write_file
+    path: tests/test_services.py
+    description: "Add service tests"
+    tags: [safe]
+    content: |
+      from src.models import User
+      from src.services import TaskService
+
+      def test_create_and_list():
+          svc = TaskService()
+          user = User(name="Alice", email="alice@example.com")
+          svc.create("Fix bug", user)
+          assert len(svc.list_open()) == 1
+
+  - type: write_file
+    path: docs/architecture.md
+    description: "Update architecture docs"
+    tags: [safe]
+    content: |
+      # Architecture
+
+      - `src/models.py` -- Data models (User, Task)
+      - `src/services.py` -- Business logic layer
+      - `src/main.py` -- Entry point
+
+  - type: write_file
+    path: Makefile
+    description: "Add project Makefile"
+    tags: [safe]
+    content: |
+      .PHONY: test lint
+
+      test:
+      	python -m pytest tests/
+
+      lint:
+      	python -m flake8 src/

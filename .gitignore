@@ -1,0 +1,9 @@
+/target
+.cargo/config.toml
+*.swp
+*.swo
+*~
+.DS_Store
+docs/reports/
+docs/prd_validation_summary.md
+docs/PuzzlePod_Strategy.md

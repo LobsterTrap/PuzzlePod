@@ -1,0 +1,159 @@
+<mxfile host="app.diagrams.net" modified="2026-03-05T00:00:00.000Z" agent="Claude" version="21.0.0">
+  <diagram id="seccomp-flow" name="Seccomp Two-Tier Strategy">
+    <mxGraphModel dx="1400" dy="1000" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1400" pageHeight="1000" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <!-- Title -->
+        <mxCell id="title" value="&lt;b&gt;Seccomp Two-Tier Strategy — Data Flow&lt;/b&gt;" style="text;html=1;align=center;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;fontSize=18;" vertex="1" parent="1">
+          <mxGeometry x="400" y="15" width="450" height="40" as="geometry" />
+        </mxCell>
+
+        <!-- Agent process -->
+        <mxCell id="agent" value="&lt;b&gt;Agent Process&lt;/b&gt;&lt;br&gt;(LLM-driven)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="60" y="150" width="160" height="60" as="geometry" />
+        </mxCell>
+
+        <!-- Syscall -->
+        <mxCell id="syscall" value="&lt;b&gt;Agent makes&lt;br&gt;a syscall&lt;/b&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="290" y="150" width="120" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="agent-syscall" style="exitX=1;exitY=0.5;entryX=0;entryY=0.5;strokeColor=#333333;strokeWidth=2;" edge="1" source="agent" target="syscall" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Kernel seccomp check (in kernel) -->
+        <mxCell id="kernel-check" value="&lt;b&gt;Kernel: seccomp-BPF&lt;br&gt;filter check&lt;/b&gt;&lt;br&gt;&lt;font size=&quot;1&quot;&gt;Runs on every syscall entry&lt;/font&gt;" style="rhombus;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="480" y="120" width="180" height="120" as="geometry" />
+        </mxCell>
+
+        <mxCell id="syscall-check" style="exitX=1;exitY=0.5;entryX=0;entryY=0.5;strokeColor=#333333;strokeWidth=2;" edge="1" source="syscall" target="kernel-check" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <!-- TIER 1: High-frequency, in-kernel (Landlock) -->
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <mxCell id="tier1-box" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;verticalAlign=top;arcSize=5;" vertex="1" parent="1">
+          <mxGeometry x="60" y="320" width="380" height="240" as="geometry" />
+        </mxCell>
+        <mxCell id="tier1-title" value="&lt;b&gt;Tier 1: In-Kernel (Landlock + static seccomp)&lt;/b&gt;&lt;br&gt;&lt;font size=&quot;1&quot;&gt;High-frequency syscalls — &amp;lt; 1 μs latency&lt;/font&gt;" style="text;html=1;align=center;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="80" y="325" width="340" height="40" as="geometry" />
+        </mxCell>
+
+        <mxCell id="t1-allow" value="&lt;b&gt;ALLOW&lt;/b&gt; (default action)&lt;br&gt;open, read, write, stat, mmap, ..." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="80" y="375" width="200" height="45" as="geometry" />
+        </mxCell>
+        <mxCell id="t1-landlock" value="&lt;b&gt;Landlock checks&lt;/b&gt; (in-kernel)&lt;br&gt;FS path against read/write allowlists&lt;br&gt;→ ALLOW or EACCES" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="80" y="430" width="220" height="50" as="geometry" />
+        </mxCell>
+
+        <mxCell id="t1-deny" value="&lt;b&gt;DENY → KillProcess&lt;/b&gt;&lt;br&gt;(static, irrevocable)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="80" y="495" width="150" height="45" as="geometry" />
+        </mxCell>
+        <mxCell id="t1-deny-list" value="ptrace, kexec_load, init_module&lt;br&gt;mount, umount2, pivot_root&lt;br&gt;setns, unshare, bpf, reboot&lt;br&gt;userfaultfd, perf_event_open&lt;br&gt;&lt;b&gt;... 57 escape syscalls total&lt;/b&gt;" style="text;html=1;align=left;verticalAlign=top;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;fontSize=9;fontColor=#b85450;" vertex="1" parent="1">
+          <mxGeometry x="240" y="488" width="180" height="70" as="geometry" />
+        </mxCell>
+
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <!-- TIER 2: Low-frequency, daemon-mediated (USER_NOTIF) -->
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <mxCell id="tier2-box" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;verticalAlign=top;arcSize=5;" vertex="1" parent="1">
+          <mxGeometry x="500" y="320" width="860" height="360" as="geometry" />
+        </mxCell>
+        <mxCell id="tier2-title" value="&lt;b&gt;Tier 2: Daemon-Mediated (seccomp USER_NOTIF)&lt;/b&gt;&lt;br&gt;&lt;font size=&quot;1&quot;&gt;Low-frequency syscalls — ~50-100 μs latency (agent suspended during check)&lt;/font&gt;" style="text;html=1;align=center;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="600" y="325" width="540" height="40" as="geometry" />
+        </mxCell>
+
+        <mxCell id="t2-gated" value="&lt;b&gt;4 gated syscalls:&lt;/b&gt;&lt;br&gt;execve, execveat&lt;br&gt;connect, bind" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="520" y="380" width="140" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="t2-suspend" value="&lt;b&gt;Kernel suspends agent&lt;/b&gt;&lt;br&gt;Sends notification to&lt;br&gt;puzzled via notify_fd" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="690" y="380" width="150" height="55" as="geometry" />
+        </mxCell>
+
+        <mxCell id="t2-puzzled" value="&lt;b&gt;puzzled (SeccompHandler)&lt;/b&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;verticalAlign=top;" vertex="1" parent="1">
+          <mxGeometry x="870" y="370" width="230" height="160" as="geometry" />
+        </mxCell>
+
+        <mxCell id="t2-read-mem" value="1. Read /proc/&lt;pid&gt;/mem&lt;br&gt;&lt;font size=&quot;1&quot;&gt;Extract execve path or&lt;br&gt;connect sockaddr from agent memory&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="885" y="400" width="200" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="t2-check-profile" value="2. Check against profile&lt;br&gt;&lt;font size=&quot;1&quot;&gt;exec_allowlist or&lt;br&gt;network.allowed_domains&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="885" y="460" width="200" height="50" as="geometry" />
+        </mxCell>
+
+        <mxCell id="t2-toctou" value="3. SECCOMP_IOCTL_NOTIF_ID_VALID&lt;br&gt;&lt;font size=&quot;1&quot;&gt;Verify notification still valid (TOCTOU)&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="870" y="540" width="240" height="40" as="geometry" />
+        </mxCell>
+
+        <!-- Decision -->
+        <mxCell id="t2-decision" value="&lt;b&gt;Allow?&lt;/b&gt;" style="rhombus;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="1140" y="450" width="80" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="t2-allow" value="&lt;b&gt;ScmpNotifResp(val=0)&lt;/b&gt;&lt;br&gt;Kernel resumes agent&lt;br&gt;Syscall proceeds" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="1250" y="380" width="160" height="50" as="geometry" />
+        </mxCell>
+
+        <mxCell id="t2-deny" value="&lt;b&gt;ScmpNotifResp(err=EPERM)&lt;/b&gt;&lt;br&gt;Kernel resumes agent&lt;br&gt;Syscall returns -EPERM" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="1250" y="460" width="170" height="50" as="geometry" />
+        </mxCell>
+
+        <!-- Tier 2 arrows -->
+        <mxCell id="t2a1" style="exitX=1;exitY=0.5;entryX=0;entryY=0.5;strokeColor=#666666;" edge="1" source="t2-gated" target="t2-suspend" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="t2a2" style="exitX=1;exitY=0.5;entryX=0;entryY=0.5;strokeColor=#666666;" edge="1" source="t2-suspend" target="t2-puzzled" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="t2a3" style="exitX=1;exitY=0.5;entryX=0;entryY=0.5;strokeColor=#666666;" edge="1" source="t2-check-profile" target="t2-decision" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="t2a4" style="exitX=1;exitY=0;entryX=0;entryY=0.5;strokeColor=#82b366;strokeWidth=2;" edge="1" source="t2-decision" target="t2-allow" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="t2a5" style="exitX=1;exitY=1;entryX=0;entryY=0.5;strokeColor=#b85450;strokeWidth=2;" edge="1" source="t2-decision" target="t2-deny" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Arrows from kernel check to tiers -->
+        <mxCell id="check-tier1" style="exitX=0;exitY=1;entryX=0.5;entryY=0;strokeColor=#82b366;strokeWidth=2;curved=1;" edge="1" source="kernel-check" target="tier1-box" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="check-tier1-label" value="&lt;font color=&quot;#82b366&quot;&gt;open, read, write, stat,&lt;br&gt;ptrace, mount, ...&lt;/font&gt;" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontSize=9;" vertex="1" connectable="0" parent="check-tier1">
+          <mxGeometry x="-0.2" relative="1" as="geometry">
+            <mxPoint x="-60" as="offset" />
+          </mxGeometry>
+        </mxCell>
+
+        <mxCell id="check-tier2" style="exitX=1;exitY=1;entryX=0.3;entryY=0;strokeColor=#d6b656;strokeWidth=2;curved=1;" edge="1" source="kernel-check" target="tier2-box" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="check-tier2-label" value="&lt;font color=&quot;#d6b656&quot;&gt;execve, connect,&lt;br&gt;bind&lt;/font&gt;" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontSize=9;" vertex="1" connectable="0" parent="check-tier2">
+          <mxGeometry x="-0.2" relative="1" as="geometry">
+            <mxPoint x="30" as="offset" />
+          </mxGeometry>
+        </mxCell>
+
+        <!-- Performance comparison -->
+        <mxCell id="perf-box" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;verticalAlign=top;arcSize=5;" vertex="1" parent="1">
+          <mxGeometry x="60" y="720" width="580" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="perf-title" value="&lt;b&gt;Performance Comparison&lt;/b&gt;" style="text;html=1;align=left;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="70" y="725" width="170" height="25" as="geometry" />
+        </mxCell>
+        <mxCell id="perf-t1" value="Tier 1 (Landlock + static seccomp): &lt;b&gt;&amp;lt; 1 μs&lt;/b&gt; per check — handles open/read/write/stat (millions/sec)" style="text;html=1;align=left;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;fontSize=10;fontColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry x="70" y="750" width="540" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="perf-t2" value="Tier 2 (seccomp USER_NOTIF): &lt;b&gt;~50-100 μs&lt;/b&gt; per check — handles execve/connect/bind (rare, &amp;lt; 100/sec)" style="text;html=1;align=left;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;fontSize=10;fontColor=#d6b656;" vertex="1" parent="1">
+          <mxGeometry x="70" y="770" width="560" height="20" as="geometry" />
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

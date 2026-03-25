@@ -1,0 +1,102 @@
+name: restricted
+description: >
+  Minimal access profile for untrusted or experimental agents.
+  No network access, small quotas, narrow filesystem scope.
+
+filesystem:
+  read_allowlist:
+    - /usr/bin
+    - /usr/share
+    - /usr/lib
+    - /usr/lib64
+    - /etc/localtime
+    - /etc/ld.so.cache
+    - /proc/self
+    - /dev/null
+    - /dev/urandom
+  write_allowlist: []
+  denylist:
+    - /etc/shadow
+    - /etc/passwd
+    - /etc/ssh
+    - /root
+    - /home
+  # N15: Defense-in-depth read/write denylists
+  read_denylist:
+    - /etc/shadow
+    - /etc/gshadow
+    - /etc/sudoers
+    - /etc/sudoers.d
+  write_denylist:
+    - /etc
+    - /usr
+    - /boot
+    - /sbin
+    - /bin
+    - /lib
+    - /lib64
+    - /var/log
+    - /root
+
+exec_allowlist:
+  - /usr/bin/python3
+  - /usr/bin/cat
+  - /usr/bin/ls
+  - /usr/bin/head
+  - /usr/bin/tail
+  - /usr/bin/grep
+  - /usr/bin/wc
+
+# T24: Expanded exec_denylist — privilege escalation + exfiltration vectors
+exec_denylist:
+  - nsenter
+  - unshare
+  - chroot
+  - mount
+  - strace
+  - gdb
+  - su
+  - sudo
+  - pkexec
+  - dd
+  - nc
+  - ncat
+  - socat
+  - capsh
+  - setcap
+  - modprobe
+  - insmod
+  - kexec
+  - bpftool
+  # §3.4 G31: Netfilter binaries — prevent agent from modifying DNAT rules
+  - nft
+  - iptables
+  - ip6tables
+  - ebtables
+  - xtables-legacy-multi
+  - xtables-nft-multi
+
+resource_limits:
+  memory_bytes: 268435456      # 256 MiB
+  cpu_shares: 50
+  io_weight: 50
+  max_pids: 16
+  storage_quota_mb: 256
+  inode_quota: 1000
+
+network:
+  mode: Blocked
+  allowed_domains: []
+
+behavioral:
+  max_deletions: 10
+  max_reads_per_minute: 100
+  credential_access_alert: true
+
+fail_mode: FailClosed
+allow_symlinks: false
+
+# Permissive mode: default-allow seccomp with deny list for dangerous
+# syscalls. Strict mode's allowlist is too narrow for real workloads
+# (e.g. Python needs many syscalls not in the allowlist).
+seccomp_mode: Permissive

@@ -1,0 +1,274 @@
+#cloud-config
+# puzzled-dev-libvirt.yaml -- cloud-init user-data for libvirt VM
+#
+# This is the Fedora Linux equivalent of puzzled-dev.yaml (Lima/macOS).
+# Used by scripts/libvirt-dev.sh to provision a Fedora 42 VM with all
+# kernel primitives required by puzzled.
+#
+# Usage (via convenience script):
+#   ./scripts/libvirt-dev.sh setup
+#   ./scripts/libvirt-dev.sh shell
+#   ./scripts/libvirt-dev.sh demo phase1
+#
+# Manual usage:
+#   cloud-localds seed.iso puzzled-dev-libvirt.yaml meta-data.yaml
+#   virt-install ... --disk path=seed.iso,device=cdrom ...
+
+users:
+  - name: puzzlepod
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    shell: /bin/bash
+    groups: wheel
+    # SSH key is injected by scripts/libvirt-dev.sh at setup time
+    ssh_authorized_keys:
+      - REPLACE_WITH_SSH_PUBKEY
+
+package_update: true
+
+packages:
+  - gcc
+  - gcc-c++
+  - make
+  - cmake
+  - pkg-config
+  - openssl-devel
+  - dbus-devel
+  - systemd-devel
+  - clang
+  - llvm
+  - libseccomp-devel
+  - bpftool
+  - libbpf-devel
+  - nftables
+  - xfsprogs
+  - xfsprogs-devel
+  - fio
+  - jq
+  - git
+  - strace
+  - ltrace
+  - perf
+  - audit
+  - ima-evm-utils
+  - util-linux
+  - rsync
+  # Rootless demo dependencies
+  - fuse-overlayfs
+  - fuse3
+
+runcmd:
+  # -------------------------------------------------------
+  # 1. Mount securityfs (needed for Landlock ABI check)
+  # -------------------------------------------------------
+  - |
+    if ! mountpoint -q /sys/kernel/security 2>/dev/null; then
+      mount -t securityfs securityfs /sys/kernel/security
+    fi
+    if ! grep -q securityfs /etc/fstab; then
+      echo "securityfs /sys/kernel/security securityfs defaults 0 0" >> /etc/fstab
+    fi
+
+  # -------------------------------------------------------
+  # 2. Install Rust toolchain for the puzzlepod user
+  # -------------------------------------------------------
+  - |
+    su - puzzlepod -c 'curl --proto "=https" --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable --profile default'
+    su - puzzlepod -c 'source "$HOME/.cargo/env" && rustup component add clippy rustfmt'
+
+  # -------------------------------------------------------
+  # 3. Verify kernel primitives
+  # -------------------------------------------------------
+  - |
+    echo ""
+    echo "=== Kernel primitive verification ==="
+    KERNEL=$(uname -r)
+    echo "Kernel: $KERNEL"
+
+    check_config() {
+      local key=$1
+      local label=$2
+      if [ -f "/boot/config-${KERNEL}" ]; then
+        if grep -q "^${key}=[ym]" "/boot/config-${KERNEL}"; then
+          echo "  [OK] ${label} (${key})"
+        else
+          echo "  [MISSING] ${label} (${key})"
+        fi
+      elif [ -f /proc/config.gz ]; then
+        if zcat /proc/config.gz | grep -q "^${key}=[ym]"; then
+          echo "  [OK] ${label} (${key})"
+        else
+          echo "  [MISSING] ${label} (${key})"
+        fi
+      else
+        echo "  [SKIP] Cannot verify ${label} -- no kernel config found"
+      fi
+    }
+
+    check_config CONFIG_OVERLAY_FS "OverlayFS"
+    check_config CONFIG_SECURITY_LANDLOCK "Landlock LSM"
+    check_config CONFIG_BPF_LSM "BPF LSM"
+    check_config CONFIG_SECCOMP "seccomp"
+    check_config CONFIG_SECCOMP_FILTER "seccomp-BPF"
+    check_config CONFIG_USER_NS "User namespaces"
+    check_config CONFIG_PID_NS "PID namespaces"
+    check_config CONFIG_NET_NS "Network namespaces"
+    check_config CONFIG_CGROUPS "cgroups"
+    check_config CONFIG_CGROUP_BPF "cgroup BPF"
+    check_config CONFIG_MEMCG "Memory cgroup"
+    check_config CONFIG_BLK_CGROUP "Block I/O cgroup"
+    check_config CONFIG_CGROUP_PIDS "PIDs cgroup"
+    check_config CONFIG_CGROUP_FREEZER "cgroup freezer"
+    check_config CONFIG_FANOTIFY "fanotify"
+    check_config CONFIG_AUDIT "Linux Audit"
+    check_config CONFIG_IMA "IMA"
+    check_config CONFIG_NF_TABLES "nftables"
+
+    # Verify Landlock ABI version
+    if [ -f /sys/kernel/security/landlock/abi_version ]; then
+      ABI=$(cat /sys/kernel/security/landlock/abi_version)
+      echo "  [OK] Landlock ABI version: ${ABI} (need >= 4 for network)"
+    else
+      echo "  [WARN] Landlock not available via /sys/kernel/security/landlock/"
+    fi
+
+    # Verify cgroups v2
+    if mount | grep -q "cgroup2"; then
+      echo "  [OK] cgroups v2 (unified hierarchy) mounted"
+    else
+      echo "  [WARN] cgroups v2 not detected"
+    fi
+
+    # Verify BPF LSM is in the active LSM list
+    if [ -f /sys/kernel/security/lsm ]; then
+      LSM=$(cat /sys/kernel/security/lsm)
+      echo "  LSM list: ${LSM}"
+      if echo "$LSM" | grep -q "bpf"; then
+        echo "  [OK] BPF LSM is active"
+      else
+        echo "  [WARN] BPF LSM not in active LSM list -- may need lsm= kernel parameter"
+      fi
+      if echo "$LSM" | grep -q "landlock"; then
+        echo "  [OK] Landlock LSM is active"
+      else
+        echo "  [WARN] Landlock LSM not in active LSM list"
+      fi
+    fi
+
+  # -------------------------------------------------------
+  # 4. Enable BPF LSM if not already active
+  # -------------------------------------------------------
+  - |
+    if [ -f /sys/kernel/security/lsm ]; then
+      if ! cat /sys/kernel/security/lsm | grep -q "bpf"; then
+        echo ""
+        echo "=== Enabling BPF LSM via kernel command line ==="
+        if [ -f /etc/default/grub ]; then
+          if ! grep -q "lsm=.*bpf" /etc/default/grub; then
+            CURRENT_LSM=$(cat /sys/kernel/security/lsm)
+            sed -i "s/GRUB_CMDLINE_LINUX=\"/GRUB_CMDLINE_LINUX=\"lsm=${CURRENT_LSM},bpf /" /etc/default/grub
+            grub2-mkconfig -o /boot/grub2/grub.cfg 2>/dev/null || true
+            echo "  BPF LSM added to kernel command line -- will be active after reboot"
+          fi
+        fi
+      fi
+    fi
+
+  # -------------------------------------------------------
+  # 5. Configure cgroups v2 delegation for development
+  # -------------------------------------------------------
+  - |
+    mkdir -p /etc/systemd/system/user@.service.d
+    cat > /etc/systemd/system/user@.service.d/delegate.conf << 'DELEGATE'
+[Service]
+Delegate=cpu cpuset io memory pids
+DELEGATE
+    systemctl daemon-reload
+
+  # -------------------------------------------------------
+  # 6. Create XFS test partition (loopback)
+  # -------------------------------------------------------
+  - |
+    XFS_IMG="/var/lib/puzzled-test-xfs.img"
+    XFS_MNT="/var/lib/puzzled/test-xfs"
+    if [ ! -f "$XFS_IMG" ]; then
+      echo ""
+      echo "=== Creating XFS test partition (2GB loopback) ==="
+      truncate -s 2G "$XFS_IMG"
+      mkfs.xfs -f "$XFS_IMG"
+      mkdir -p "$XFS_MNT"
+      mount -o loop,prjquota "$XFS_IMG" "$XFS_MNT"
+      xfs_quota -x -c 'project -s -p /var/lib/puzzled/test-xfs 1' "$XFS_MNT" 2>/dev/null || true
+      echo "  [OK] XFS test partition at ${XFS_MNT} with project quotas"
+      echo "${XFS_IMG} ${XFS_MNT} xfs loop,prjquota 0 0" >> /etc/fstab
+    fi
+
+  # -------------------------------------------------------
+  # 7. Create puzzled directory structure
+  # -------------------------------------------------------
+  - |
+    mkdir -p /var/lib/puzzled/{branches,journal,staging}
+    mkdir -p /var/log/puzzled/{changesets,rejected}
+    mkdir -p /etc/puzzled/{profiles,policies}
+    mkdir -p /run/puzzled
+
+  # -------------------------------------------------------
+  # 8. Set up D-Bus policy for puzzled development
+  # -------------------------------------------------------
+  - |
+    cat > /etc/dbus-1/system.d/org.lobstertrap.PuzzlePod1.conf << 'DBUS'
+<!DOCTYPE busconfig PUBLIC "-//freedesktop//DTD D-BUS Bus Configuration 1.0//EN"
+ "http://www.freedesktop.org/standards/dbus/1.0/busconfig.dtd">
+<busconfig>
+  <!-- Allow root to own the puzzled bus name -->
+  <policy user="root">
+    <allow own="org.lobstertrap.PuzzlePod1"/>
+    <allow send_destination="org.lobstertrap.PuzzlePod1"/>
+    <allow receive_sender="org.lobstertrap.PuzzlePod1"/>
+  </policy>
+
+  <!-- DEV VM ONLY: allows wheel group users to call puzzled.
+       Production should restrict send_destination to specific interfaces/methods.
+       Do NOT copy to production systems. -->
+  <policy group="wheel">
+    <allow send_destination="org.lobstertrap.PuzzlePod1"/>
+    <allow receive_sender="org.lobstertrap.PuzzlePod1"/>
+  </policy>
+</busconfig>
+DBUS
+    systemctl reload dbus 2>/dev/null || true
+
+  # -------------------------------------------------------
+  # 9. Create project directory for rsync target
+  # -------------------------------------------------------
+  - |
+    mkdir -p /home/puzzlepod/puzzlepod
+    chown puzzlepod:puzzlepod /home/puzzlepod/puzzlepod
+
+  # -------------------------------------------------------
+  # 10. Print summary
+  # -------------------------------------------------------
+  - |
+    echo ""
+    echo "=========================================="
+    echo "  PuzzlePod dev environment ready"
+    echo "=========================================="
+    echo ""
+    RUST_VER=$(su - puzzlepod -c 'source "$HOME/.cargo/env" && rustc --version 2>/dev/null' || echo 'not found')
+    CARGO_VER=$(su - puzzlepod -c 'source "$HOME/.cargo/env" && cargo --version 2>/dev/null' || echo 'not found')
+    echo "  Rust:     ${RUST_VER}"
+    echo "  Cargo:    ${CARGO_VER}"
+    echo "  Clang:    $(clang --version 2>/dev/null | head -1 || echo 'not found')"
+    echo "  bpftool:  $(bpftool version 2>/dev/null | head -1 || echo 'not found')"
+    echo "  Kernel:   $(uname -r)"
+    echo ""
+    echo "  Project:  /home/puzzlepod/puzzlepod (synced from host via rsync)"
+    echo "  XFS test: /var/lib/puzzled/test-xfs"
+    echo "  D-Bus:    org.lobstertrap.PuzzlePod1"
+    echo ""
+
+  # -------------------------------------------------------
+  # 11. Signal provisioning complete
+  # -------------------------------------------------------
+  - touch /var/lib/cloud/instance/puzzled-dev-ready
+
+final_message: "PuzzlePod libvirt VM provisioning complete after $UPTIME seconds."

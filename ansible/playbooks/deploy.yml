@@ -1,0 +1,18 @@
+---
+# Full PuzzlePod deployment playbook
+#
+# Usage:
+#   ansible-playbook -i inventory playbooks/deploy.yml
+#   ansible-playbook -i inventory playbooks/deploy.yml --tags profiles
+#   ansible-playbook -i inventory playbooks/deploy.yml -e puzzled_max_branches=8
+
+- name: Deploy PuzzlePod
+  hosts: all
+  become: true
+  roles:
+    - role: puzzled
+      tags: [puzzled, install]
+    - role: profiles
+      tags: [profiles, config]
+    - role: policies
+      tags: [policies, config]

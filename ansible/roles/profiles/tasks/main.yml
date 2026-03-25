@@ -1,0 +1,40 @@
+---
+# Deploy agent profile YAML files
+
+- name: Ensure profiles directory exists
+  ansible.builtin.file:
+    path: "{{ puzzled_profiles_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Deploy all profiles from source directory
+  ansible.builtin.copy:
+    src: "{{ puzzled_profiles_src }}"
+    dest: "{{ puzzled_profiles_dir }}/"
+    owner: root
+    group: root
+    mode: "0644"
+  when: puzzled_profiles_list | length == 0
+
+- name: Deploy specific profiles
+  ansible.builtin.copy:
+    src: "{{ puzzled_profiles_src }}/{{ item }}.yaml"
+    dest: "{{ puzzled_profiles_dir }}/{{ item }}.yaml"
+    owner: root
+    group: root
+    mode: "0644"
+  loop: "{{ puzzled_profiles_list }}"
+  when: puzzled_profiles_list | length > 0
+
+- name: Validate deployed profiles
+  ansible.builtin.command:
+    cmd: "puzzlectl profile validate {{ puzzled_profiles_dir }}/{{ item }}"
+  loop: "{{ deployed_profiles.files | map(attribute='path') | map('basename') | list }}"
+  register: validation_results
+  changed_when: false
+  failed_when: validation_results.rc != 0
+  vars:
+    deployed_profiles: "{{ lookup('fileglob', puzzled_profiles_dir + '/*.yaml', wantlist=True) }}"
+  when: false  # Disabled until puzzlectl is installed

@@ -1,0 +1,96 @@
+name: log-analyzer
+description: >
+  Profile for log analysis and aggregation agents. Network is fully blocked
+  to prevent data exfiltration of potentially sensitive log content. Read
+  access to system log directories. Supports common text processing utilities.
+
+filesystem:
+  read_allowlist:
+    - /usr/share
+    - /usr/lib
+    - /usr/lib64
+    - /var/log
+    - /etc/alternatives
+  write_allowlist: []
+  denylist:
+    - /etc/shadow
+    - /etc/gshadow
+    - /etc/ssh
+    - /root/.ssh
+    - /etc/sudoers
+    - /etc/sudoers.d
+  # N15: Defense-in-depth read/write denylists
+  read_denylist:
+    - /etc/shadow
+    - /etc/gshadow
+    - /etc/sudoers
+    - /etc/sudoers.d
+  write_denylist:
+    - /etc
+    - /usr
+    - /boot
+    - /sbin
+    - /bin
+    - /lib
+    - /lib64
+    - /var/log
+    - /root
+
+exec_allowlist:
+  - /usr/bin/python3
+  - /usr/bin/grep
+  - /usr/bin/awk
+  - /usr/bin/sed
+  - /usr/bin/jq
+  - /usr/bin/cat
+  - /usr/bin/ls
+  - /usr/bin/head
+  - /usr/bin/tail
+  - /usr/bin/wc
+  - /usr/bin/sort
+  - /usr/bin/uniq
+  - /usr/bin/cut
+
+# T24: Expanded exec_denylist — privilege escalation + exfiltration vectors
+exec_denylist:
+  - nsenter
+  - unshare
+  - chroot
+  - mount
+  - strace
+  - gdb
+  - su
+  - sudo
+  - pkexec
+  - dd
+  - nc
+  - ncat
+  - socat
+  - capsh
+  - setcap
+  - modprobe
+  - insmod
+  - kexec
+  - bpftool
+
+resource_limits:
+  memory_bytes: 268435456      # 256 MiB
+  cpu_shares: 80
+  io_weight: 80
+  max_pids: 16
+  storage_quota_mb: 512
+  inode_quota: 5000
+
+network:
+  mode: Blocked
+  allowed_domains: []
+
+behavioral:
+  max_deletions: 5
+  max_reads_per_minute: 5000
+  credential_access_alert: true
+
+seccomp_mode: Permissive
+allow_symlinks: false
+
+fail_mode: FailClosed

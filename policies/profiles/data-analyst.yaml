@@ -1,0 +1,96 @@
+name: data-analyst
+description: >
+  Profile for data analysis and visualization agents. Gated network access
+  to Python package registry. Supports Python, Jupyter notebooks, and R
+  for statistical computing and data science workflows.
+
+filesystem:
+  read_allowlist:
+    - /usr/share
+    - /usr/lib
+    - /usr/lib64
+    - /usr/include
+    - /etc/alternatives
+  write_allowlist: []
+  denylist:
+    - /etc/shadow
+    - /etc/gshadow
+    - /etc/ssh
+    - /root/.ssh
+    - /etc/sudoers
+    - /etc/sudoers.d
+  # N15: Defense-in-depth read/write denylists
+  read_denylist:
+    - /etc/shadow
+    - /etc/gshadow
+    - /etc/sudoers
+    - /etc/sudoers.d
+  write_denylist:
+    - /etc
+    - /usr
+    - /boot
+    - /sbin
+    - /bin
+    - /lib
+    - /lib64
+    - /var/log
+    - /root
+
+exec_allowlist:
+  - /usr/bin/python3
+  - /usr/bin/jupyter
+  - /usr/bin/R
+  - /usr/bin/Rscript
+  - /usr/bin/cat
+  - /usr/bin/ls
+  - /usr/bin/head
+  - /usr/bin/tail
+  - /usr/bin/grep
+  - /usr/bin/wc
+  - /usr/bin/sort
+
+# T24: Expanded exec_denylist — privilege escalation + exfiltration vectors
+exec_denylist:
+  - nsenter
+  - unshare
+  - chroot
+  - mount
+  - strace
+  - gdb
+  - su
+  - sudo
+  - pkexec
+  - dd
+  - nc
+  - ncat
+  - socat
+  - capsh
+  - setcap
+  - modprobe
+  - insmod
+  - kexec
+  - bpftool
+
+resource_limits:
+  memory_bytes: 1073741824     # 1 GiB
+  cpu_shares: 150
+  io_weight: 100
+  max_pids: 32
+  storage_quota_mb: 2048
+  inode_quota: 20000
+
+network:
+  mode: Gated
+  allowed_domains:
+    - pypi.org
+    - files.pythonhosted.org
+
+behavioral:
+  max_deletions: 30
+  max_reads_per_minute: 2000
+  credential_access_alert: true
+
+seccomp_mode: Permissive
+allow_symlinks: false
+
+fail_mode: FailClosed

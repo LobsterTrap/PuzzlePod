@@ -1,0 +1,25 @@
+---
+# Deploy OPA/Rego governance policies
+
+- name: Ensure policies directory exists
+  ansible.builtin.file:
+    path: "{{ puzzled_policies_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Deploy Rego policy files
+  ansible.builtin.copy:
+    src: "{{ puzzled_policies_src }}"
+    dest: "{{ puzzled_policies_dir }}/"
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Reload puzzled policies
+
+- name: Reload puzzled policies
+  ansible.builtin.command:
+    cmd: puzzlectl policy reload
+  changed_when: false
+  listen: Reload puzzled policies

@@ -1,0 +1,5 @@
+---
+# Default variables for policies role
+
+puzzled_policies_dir: /etc/puzzled/policies
+puzzled_policies_src: "{{ playbook_dir }}/../policies/rules/"

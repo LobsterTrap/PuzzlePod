@@ -1,0 +1,86 @@
+# CI builder image for PuzzlePod
+#
+# Pre-installs all system dependencies, Rust toolchain, and CI tools
+# so that CI jobs skip the ~80s setup overhead on every run.
+#
+# Build (~3 min, all pre-built binaries, no cargo install):
+#   podman build -t ghcr.io/lobstertrap/puzzlepod/ci:fedora42 -f ci/Containerfile .
+#
+# Push:
+#   podman login ghcr.io
+#   podman push ghcr.io/lobstertrap/puzzlepod/ci:fedora42
+#
+# Rebuild when:
+#   - Rust stable version bumps (quarterly)
+#   - System deps change (rare)
+#   - cargo-deny/cargo-tarpaulin version bumps
+
+FROM quay.io/fedora/fedora:42
+
+# System build dependencies
+RUN dnf install -y --setopt=install_weak_deps=False \
+        gcc gcc-c++ make pkg-config git \
+        openssl-devel dbus-devel libseccomp-devel systemd-devel \
+        clang \
+        rpm-build rpmdevtools \
+        selinux-policy-devel \
+        dbus-daemon dbus-tools \
+    && dnf clean all \
+    && rm -rf /var/cache/dnf
+
+# Rust toolchain (stable + fmt + clippy)
+ENV RUSTUP_HOME=/usr/local/rustup \
+    CARGO_HOME=/usr/local/cargo \
+    PATH=/usr/local/cargo/bin:$PATH
+
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
+        | sh -s -- -y --default-toolchain stable --profile default \
+    && rustup component add rustfmt clippy \
+    && rustc --version && cargo --version
+
+# CI tools — use pre-built binaries (cargo install cargo-tarpaulin takes
+# 45+ min on slow runners and was the reason the image build timed out).
+ARG DENY_VERSION=0.19.0
+ARG TARPAULIN_VERSION=0.32.7
+
+RUN curl -sSL "https://github.com/EmbarkStudios/cargo-deny/releases/download/${DENY_VERSION}/cargo-deny-${DENY_VERSION}-x86_64-unknown-linux-musl.tar.gz" \
+        | tar xz -C /usr/local/bin --strip-components=1 \
+    && curl -sSL "https://github.com/xd009642/tarpaulin/releases/download/${TARPAULIN_VERSION}/cargo-tarpaulin-x86_64-unknown-linux-musl.tar.gz" \
+        | tar xz -C /usr/local/cargo/bin
+
+# Pre-cache workspace dependency index so first cargo build in CI only
+# downloads crate tarballs (fast) rather than cloning the full index (slow).
+# Copy only the files cargo needs for dependency resolution.
+COPY Cargo.toml Cargo.lock /tmp/ws/
+COPY crates/puzzled/Cargo.toml /tmp/ws/crates/puzzled/Cargo.toml
+COPY crates/puzzlectl/Cargo.toml /tmp/ws/crates/puzzlectl/Cargo.toml
+COPY crates/puzzled-types/Cargo.toml /tmp/ws/crates/puzzled-types/Cargo.toml
+COPY crates/puzzle-proxy/Cargo.toml /tmp/ws/crates/puzzle-proxy/Cargo.toml
+COPY crates/puzzle-sandbox-demo/Cargo.toml /tmp/ws/crates/puzzle-sandbox-demo/Cargo.toml
+COPY crates/puzzle-phase2-demo/Cargo.toml /tmp/ws/crates/puzzle-phase2-demo/Cargo.toml
+# Q4: Add stubs for proposed crates so cargo fetch resolves the full workspace
+COPY crates/puzzle-hook/Cargo.toml /tmp/ws/crates/puzzle-hook/Cargo.toml
+COPY crates/puzzle-init/Cargo.toml /tmp/ws/crates/puzzle-init/Cargo.toml
+
+# Create stub lib.rs / main.rs so cargo fetch can resolve the workspace
+RUN for crate in puzzled puzzlectl puzzle-sandbox-demo puzzle-phase2-demo puzzle-hook puzzle-init; do \
+        mkdir -p /tmp/ws/crates/$crate/src && touch /tmp/ws/crates/$crate/src/main.rs; \
+    done \
+    && for crate in puzzled-types puzzle-proxy; do \
+        mkdir -p /tmp/ws/crates/$crate/src && touch /tmp/ws/crates/$crate/src/lib.rs; \
+    done \
+    && mkdir -p /tmp/ws/crates/puzzled/src && echo 'fn main(){}' > /tmp/ws/crates/puzzled/src/main.rs \
+    && cd /tmp/ws && cargo fetch 2>/dev/null || true \
+    && rm -rf /tmp/ws
+
+# Clean crate source cache (keep registry index for fast resolution)
+RUN rm -rf /usr/local/cargo/registry/cache \
+    && rm -rf /usr/local/cargo/registry/src
+
+# Verify everything is available
+RUN rustc --version \
+    && cargo --version \
+    && cargo-deny --version \
+    && cargo-tarpaulin --version \
+    && gcc --version | head -1 \
+    && clang --version | head -1

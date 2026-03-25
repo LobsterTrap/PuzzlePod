@@ -1,0 +1,202 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mxfile host="app.diagrams.net" modified="2026-03-06" agent="Claude" version="24.0">
+  <diagram id="budget-escalation" name="Budget Escalation State Machine">
+    <mxGraphModel dx="1400" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1400" pageHeight="900" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+
+        <!-- Title -->
+        <mxCell id="title" value="Adaptive Budget Engine: Trust-Through-Behavior" style="text;html=1;fontSize=20;fontStyle=1;align=center;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="200" y="20" width="1000" height="40" as="geometry"/>
+        </mxCell>
+        <mxCell id="subtitle" value="Agents earn expanded resource limits through consistent policy-compliant behavior" style="text;html=1;fontSize=12;fontStyle=2;align=center;fontColor=#666666;" vertex="1" parent="1">
+          <mxGeometry x="300" y="55" width="800" height="25" as="geometry"/>
+        </mxCell>
+
+        <!-- ═══════════════════════════════════════════════════ -->
+        <!-- State Machine: Three tiers                          -->
+        <!-- ═══════════════════════════════════════════════════ -->
+
+        <!-- RESTRICTED tier -->
+        <mxCell id="restricted-box" value="" style="rounded=1;whiteSpace=wrap;fillColor=#f8cecc;strokeColor=#b85450;strokeWidth=3;" vertex="1" parent="1">
+          <mxGeometry x="80" y="140" width="320" height="280" as="geometry"/>
+        </mxCell>
+        <mxCell id="restricted-title" value="RESTRICTED" style="text;html=1;fontSize=18;fontStyle=1;align=center;fontColor=#CC0000;" vertex="1" parent="1">
+          <mxGeometry x="140" y="150" width="200" height="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="restricted-desc" value="&lt;b&gt;Initial tier for all new agents&lt;/b&gt;" style="text;html=1;fontSize=11;align=center;fontColor=#666666;" vertex="1" parent="1">
+          <mxGeometry x="110" y="180" width="260" height="20" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="restricted-limits" value="&lt;table style='font-size:11px;border-collapse:collapse'&gt;&lt;tr&gt;&lt;td style='padding:3px;font-weight:bold'&gt;Resource&lt;/td&gt;&lt;td style='padding:3px;font-weight:bold'&gt;Limit&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td style='padding:3px'&gt;Max files/commit&lt;/td&gt;&lt;td style='padding:3px'&gt;50&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td style='padding:3px'&gt;Max bytes/commit&lt;/td&gt;&lt;td style='padding:3px'&gt;1 MB&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td style='padding:3px'&gt;Exec rate&lt;/td&gt;&lt;td style='padding:3px'&gt;10/min&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td style='padding:3px'&gt;Network domains&lt;/td&gt;&lt;td style='padding:3px'&gt;5&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td style='padding:3px'&gt;Branch lifetime&lt;/td&gt;&lt;td style='padding:3px'&gt;1 hour&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;" style="text;html=1;overflow=fill;" vertex="1" parent="1">
+          <mxGeometry x="120" y="210" width="240" height="130" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="restricted-star" value="★ Default start" style="text;html=1;fontSize=11;fontStyle=1;fontColor=#CC0000;align=center;" vertex="1" parent="1">
+          <mxGeometry x="140" y="380" width="200" height="20" as="geometry"/>
+        </mxCell>
+
+        <!-- STANDARD tier -->
+        <mxCell id="standard-box" value="" style="rounded=1;whiteSpace=wrap;fillColor=#fff2cc;strokeColor=#d6b656;strokeWidth=3;" vertex="1" parent="1">
+          <mxGeometry x="540" y="140" width="320" height="280" as="geometry"/>
+        </mxCell>
+        <mxCell id="standard-title" value="STANDARD" style="text;html=1;fontSize=18;fontStyle=1;align=center;fontColor=#CC8800;" vertex="1" parent="1">
+          <mxGeometry x="600" y="150" width="200" height="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="standard-desc" value="&lt;b&gt;After 10+ clean commits&lt;/b&gt;" style="text;html=1;fontSize=11;align=center;fontColor=#666666;" vertex="1" parent="1">
+          <mxGeometry x="570" y="180" width="260" height="20" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="standard-limits" value="&lt;table style='font-size:11px;border-collapse:collapse'&gt;&lt;tr&gt;&lt;td style='padding:3px;font-weight:bold'&gt;Resource&lt;/td&gt;&lt;td style='padding:3px;font-weight:bold'&gt;Limit&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td style='padding:3px'&gt;Max files/commit&lt;/td&gt;&lt;td style='padding:3px'&gt;200&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td style='padding:3px'&gt;Max bytes/commit&lt;/td&gt;&lt;td style='padding:3px'&gt;10 MB&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td style='padding:3px'&gt;Exec rate&lt;/td&gt;&lt;td style='padding:3px'&gt;30/min&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td style='padding:3px'&gt;Network domains&lt;/td&gt;&lt;td style='padding:3px'&gt;20&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td style='padding:3px'&gt;Branch lifetime&lt;/td&gt;&lt;td style='padding:3px'&gt;4 hours&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;" style="text;html=1;overflow=fill;" vertex="1" parent="1">
+          <mxGeometry x="580" y="210" width="240" height="130" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="standard-multi" value="4× file limit, 10× byte limit" style="text;html=1;fontSize=11;fontStyle=2;fontColor=#CC8800;align=center;" vertex="1" parent="1">
+          <mxGeometry x="580" y="380" width="240" height="20" as="geometry"/>
+        </mxCell>
+
+        <!-- EXTENDED tier -->
+        <mxCell id="extended-box" value="" style="rounded=1;whiteSpace=wrap;fillColor=#d5e8d4;strokeColor=#82b366;strokeWidth=3;" vertex="1" parent="1">
+          <mxGeometry x="1000" y="140" width="320" height="280" as="geometry"/>
+        </mxCell>
+        <mxCell id="extended-title" value="EXTENDED" style="text;html=1;fontSize=18;fontStyle=1;align=center;fontColor=#009900;" vertex="1" parent="1">
+          <mxGeometry x="1060" y="150" width="200" height="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="extended-desc" value="&lt;b&gt;After 50+ clean commits&lt;/b&gt;" style="text;html=1;fontSize=11;align=center;fontColor=#666666;" vertex="1" parent="1">
+          <mxGeometry x="1030" y="180" width="260" height="20" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="extended-limits" value="&lt;table style='font-size:11px;border-collapse:collapse'&gt;&lt;tr&gt;&lt;td style='padding:3px;font-weight:bold'&gt;Resource&lt;/td&gt;&lt;td style='padding:3px;font-weight:bold'&gt;Limit&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td style='padding:3px'&gt;Max files/commit&lt;/td&gt;&lt;td style='padding:3px'&gt;1000&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td style='padding:3px'&gt;Max bytes/commit&lt;/td&gt;&lt;td style='padding:3px'&gt;100 MB&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td style='padding:3px'&gt;Exec rate&lt;/td&gt;&lt;td style='padding:3px'&gt;100/min&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td style='padding:3px'&gt;Network domains&lt;/td&gt;&lt;td style='padding:3px'&gt;Unlimited&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td style='padding:3px'&gt;Branch lifetime&lt;/td&gt;&lt;td style='padding:3px'&gt;24 hours&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;" style="text;html=1;overflow=fill;" vertex="1" parent="1">
+          <mxGeometry x="1040" y="210" width="240" height="130" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="extended-multi" value="20× file limit, 100× byte limit" style="text;html=1;fontSize=11;fontStyle=2;fontColor=#009900;align=center;" vertex="1" parent="1">
+          <mxGeometry x="1040" y="380" width="240" height="20" as="geometry"/>
+        </mxCell>
+
+        <!-- ═══════════════════════════════════════════════════ -->
+        <!-- Escalation arrows (green, going right)              -->
+        <!-- ═══════════════════════════════════════════════════ -->
+
+        <mxCell id="esc-1" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#009900;strokeWidth=3;exitX=1;exitY=0.3;exitDx=0;exitDy=0;entryX=0;entryY=0.3;entryDx=0;entryDy=0;" edge="1" parent="1" source="restricted-box" target="standard-box">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="esc-1-label" value="&lt;b&gt;ESCALATE&lt;/b&gt;&lt;br&gt;10+ clean commits&lt;br&gt;(zero violations)" style="edgeLabel;html=1;fontSize=10;fontColor=#009900;align=center;labelBackgroundColor=#FFFFFF;" vertex="1" connectable="0" parent="esc-1">
+          <mxGeometry x="-0.1" relative="1" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="esc-2" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#009900;strokeWidth=3;exitX=1;exitY=0.3;exitDx=0;exitDy=0;entryX=0;entryY=0.3;entryDx=0;entryDy=0;" edge="1" parent="1" source="standard-box" target="extended-box">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="esc-2-label" value="&lt;b&gt;ESCALATE&lt;/b&gt;&lt;br&gt;50+ clean commits&lt;br&gt;(zero violations)" style="edgeLabel;html=1;fontSize=10;fontColor=#009900;align=center;labelBackgroundColor=#FFFFFF;" vertex="1" connectable="0" parent="esc-2">
+          <mxGeometry x="-0.1" relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- ═══════════════════════════════════════════════════ -->
+        <!-- De-escalation arrows (red, going left)              -->
+        <!-- ═══════════════════════════════════════════════════ -->
+
+        <mxCell id="deesc-1" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#CC0000;strokeWidth=2;dashed=1;exitX=0;exitY=0.7;exitDx=0;exitDy=0;entryX=1;entryY=0.7;entryDx=0;entryDy=0;" edge="1" parent="1" source="standard-box" target="restricted-box">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="deesc-1-label" value="&lt;b&gt;DE-ESCALATE&lt;/b&gt;&lt;br&gt;policy violation" style="edgeLabel;html=1;fontSize=10;fontColor=#CC0000;align=center;labelBackgroundColor=#FFFFFF;" vertex="1" connectable="0" parent="deesc-1">
+          <mxGeometry x="0.1" relative="1" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="deesc-2" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#CC0000;strokeWidth=2;dashed=1;exitX=0;exitY=0.7;exitDx=0;exitDy=0;entryX=1;entryY=0.7;entryDx=0;entryDy=0;" edge="1" parent="1" source="extended-box" target="standard-box">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="deesc-2-label" value="&lt;b&gt;DE-ESCALATE&lt;/b&gt;&lt;br&gt;policy violation" style="edgeLabel;html=1;fontSize=10;fontColor=#CC0000;align=center;labelBackgroundColor=#FFFFFF;" vertex="1" connectable="0" parent="deesc-2">
+          <mxGeometry x="0.1" relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- ═══════════════════════════════════════════════════ -->
+        <!-- Event flow below state machine                      -->
+        <!-- ═══════════════════════════════════════════════════ -->
+
+        <mxCell id="flow-title" value="Event Flow: How Trust Score Changes" style="text;html=1;fontSize=14;fontStyle=1;align=center;" vertex="1" parent="1">
+          <mxGeometry x="350" y="470" width="700" height="25" as="geometry"/>
+        </mxCell>
+
+        <!-- Timeline boxes -->
+        <mxCell id="evt-1" value="&lt;b&gt;Agent starts&lt;/b&gt;&lt;br&gt;Tier: Restricted&lt;br&gt;Clean: 0" style="rounded=1;whiteSpace=wrap;fillColor=#f8cecc;strokeColor=#b85450;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="80" y="520" width="130" height="55" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="evt-2" value="&lt;b&gt;Commits 1-9&lt;/b&gt;&lt;br&gt;All clean&lt;br&gt;Still Restricted" style="rounded=1;whiteSpace=wrap;fillColor=#f8cecc;strokeColor=#b85450;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="240" y="520" width="130" height="55" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="evt-3" value="&lt;b&gt;Commit 10&lt;/b&gt;&lt;br&gt;Clean → ESCALATE&lt;br&gt;Now Standard" style="rounded=1;whiteSpace=wrap;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="400" y="520" width="130" height="55" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="evt-4" value="&lt;b&gt;Commit 15&lt;/b&gt;&lt;br&gt;VIOLATION!&lt;br&gt;→ DE-ESCALATE" style="rounded=1;whiteSpace=wrap;fillColor=#f8cecc;strokeColor=#b85450;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="560" y="520" width="130" height="55" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="evt-5" value="&lt;b&gt;Commits 16-25&lt;/b&gt;&lt;br&gt;All clean&lt;br&gt;RE-ESCALATE" style="rounded=1;whiteSpace=wrap;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="720" y="520" width="130" height="55" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="evt-6" value="&lt;b&gt;Commits 26-65&lt;/b&gt;&lt;br&gt;All clean&lt;br&gt;→ Extended" style="rounded=1;whiteSpace=wrap;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="880" y="520" width="130" height="55" as="geometry"/>
+        </mxCell>
+
+        <!-- Timeline arrows -->
+        <mxCell id="t-1" style="rounded=1;strokeColor=#666666;" edge="1" parent="1" source="evt-1" target="evt-2">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="t-2" style="rounded=1;strokeColor=#666666;" edge="1" parent="1" source="evt-2" target="evt-3">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="t-3" style="rounded=1;strokeColor=#009900;strokeWidth=2;" edge="1" parent="1" source="evt-3" target="evt-4">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="t-4" style="rounded=1;strokeColor=#CC0000;strokeWidth=2;dashed=1;" edge="1" parent="1" source="evt-4" target="evt-5">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="t-5" style="rounded=1;strokeColor=#009900;strokeWidth=2;" edge="1" parent="1" source="evt-5" target="evt-6">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- ═══════════════════════════════════════════════════ -->
+        <!-- Design principles at bottom                         -->
+        <!-- ═══════════════════════════════════════════════════ -->
+
+        <mxCell id="principles-box" value="" style="rounded=1;whiteSpace=wrap;fillColor=#f5f5f5;strokeColor=#666666;" vertex="1" parent="1">
+          <mxGeometry x="80" y="620" width="1240" height="240" as="geometry"/>
+        </mxCell>
+        <mxCell id="principles-title" value="Design Principles" style="text;html=1;fontSize=14;fontStyle=1;align=left;" vertex="1" parent="1">
+          <mxGeometry x="100" y="630" width="200" height="25" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p1" value="&lt;b&gt;Deterministic&lt;/b&gt;: No ML, no heuristics. Escalation/de-escalation rules are pure integer thresholds.&lt;br&gt;BudgetManager counts clean commits and violations — that's it." style="text;html=1;fontSize=11;align=left;" vertex="1" parent="1">
+          <mxGeometry x="100" y="660" width="580" height="40" as="geometry"/>
+        </mxCell>
+        <mxCell id="p2" value="&lt;b&gt;Asymmetric&lt;/b&gt;: Escalation requires many clean commits. De-escalation is immediate on first violation.&lt;br&gt;Trust is slow to earn, fast to lose." style="text;html=1;fontSize=11;align=left;" vertex="1" parent="1">
+          <mxGeometry x="100" y="700" width="580" height="40" as="geometry"/>
+        </mxCell>
+        <mxCell id="p3" value="&lt;b&gt;Auditable&lt;/b&gt;: Every tier change generates an AuditEvent. Budget state is queryable.&lt;br&gt;effective_limits() returns the current limits for any agent at any time." style="text;html=1;fontSize=11;align=left;" vertex="1" parent="1">
+          <mxGeometry x="100" y="740" width="580" height="40" as="geometry"/>
+        </mxCell>
+        <mxCell id="p4" value="&lt;b&gt;Composable&lt;/b&gt;: Budget limits are applied on top of profile limits (intersection).&lt;br&gt;A restricted-profile agent in Extended tier still can't exceed its profile limits." style="text;html=1;fontSize=11;align=left;" vertex="1" parent="1">
+          <mxGeometry x="100" y="780" width="580" height="40" as="geometry"/>
+        </mxCell>
+
+        <!-- API box -->
+        <mxCell id="api-box" value="" style="rounded=1;whiteSpace=wrap;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="720" y="660" width="580" height="180" as="geometry"/>
+        </mxCell>
+        <mxCell id="api-title" value="BudgetManager API" style="text;html=1;fontSize=13;fontStyle=1;align=left;" vertex="1" parent="1">
+          <mxGeometry x="740" y="665" width="200" height="25" as="geometry"/>
+        </mxCell>
+        <mxCell id="api-code" value="&lt;pre style='font-size:11px;margin:0;font-family:monospace'&gt;let mut mgr = BudgetManager::new();&#xa;&#xa;// Record successful commits&#xa;mgr.record_success(&quot;agent-1&quot;);  // clean_count++&#xa;&#xa;// Record violations&#xa;mgr.record_violation(&quot;agent-1&quot;); // tier drops, clean resets&#xa;&#xa;// Check current limits&#xa;let limits = mgr.effective_limits(&quot;agent-1&quot;);&#xa;// → ResourceLimits { max_files: 50, max_bytes: 1MB, ... }&#xa;&#xa;// Query tier&#xa;let tier = mgr.current_tier(&quot;agent-1&quot;);&#xa;// → BudgetTier::Restricted | Standard | Extended&lt;/pre&gt;" style="text;html=1;overflow=fill;" vertex="1" parent="1">
+          <mxGeometry x="730" y="690" width="560" height="140" as="geometry"/>
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

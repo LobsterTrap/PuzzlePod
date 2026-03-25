@@ -1,0 +1,34 @@
+# safety-critical.container — Safety-critical agent workload.
+#
+# Runs with maximum restrictions:
+# - Blocked network (no external access)
+# - FailSafeState fail mode
+# - Minimal exec allowlist
+# - Tight resource limits
+
+[Unit]
+Description=Safety-Critical Agent with PuzzlePod (IEC 61508 / ISO 26262)
+After=puzzled.service
+Requires=puzzled.service
+
+[Container]
+Image=localhost/safety-agent:latest
+Exec=/usr/bin/python3 /app/controller.py
+
+Annotation=run.oci.handler=puzzlepod
+Annotation=org.lobstertrap.puzzlepod.branch=safety-critical
+Annotation=org.lobstertrap.puzzlepod.profile=safety-critical
+Annotation=org.lobstertrap.puzzlepod.base_path=/var/safety-workspace
+Annotation=org.lobstertrap.puzzlepod.network_mode=blocked
+
+Volume=/var/safety-workspace:/workspace:Z
+Memory=128M
+PidsLimit=4
+Environment=PUZZLEPOD_WORKSPACE=/workspace
+
+[Service]
+Restart=on-failure
+RestartSec=1s
+
+[Install]
+WantedBy=default.target

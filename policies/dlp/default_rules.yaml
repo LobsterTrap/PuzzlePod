@@ -1,0 +1,106 @@
+# Default DLP (Data Loss Prevention) rules for PuzzlePod
+# §3.3: Content inspection patterns for the agent proxy
+#
+# Actions (severity ordering, descending):
+#   quarantine       - Block, quarantine payload, alert
+#   block_and_alert  - Block request/response, alert
+#   block_and_review - Block, flag for human review
+#   redact_and_allow - Replace matched content with [REDACTED], allow
+#   log_and_allow    - Log the match hash, allow traffic through
+#
+# Pattern types:
+#   regex   - Regular expression match
+#   entropy - Shannon entropy threshold on sliding window
+
+rules:
+  # ── Critical: Block and alert ──────────────────────────────────────
+
+  - name: private_key_pem
+    description: PEM-encoded private key (RSA, EC, DSA, generic)
+    severity: critical
+    action: block_and_alert
+    apply_to: both
+    patterns:
+      - type: regex
+        pattern: "-----BEGIN (RSA |EC |DSA |OPENSSH )?PRIVATE KEY-----"
+
+  - name: aws_access_key
+    description: AWS access key ID
+    severity: critical
+    action: block_and_alert
+    apply_to: both
+    patterns:
+      - type: regex
+        pattern: "AKIA[0-9A-Z]{16}"
+
+  - name: aws_secret_key
+    description: AWS secret access key (40-char base64)
+    severity: critical
+    action: block_and_alert
+    apply_to: request
+    patterns:
+      - type: regex
+        pattern: "(?i)aws_secret_access_key[\"'\\s:=]+[A-Za-z0-9/+=]{40}"
+
+  - name: github_token
+    description: GitHub personal access token or fine-grained token
+    severity: critical
+    action: block_and_alert
+    apply_to: request
+    patterns:
+      - type: regex
+        pattern: "gh[ps]_[A-Za-z0-9_]{36,}"
+      - type: regex
+        pattern: "github_pat_[A-Za-z0-9_]{22,}"
+
+  - name: generic_api_key
+    description: Generic API key patterns (sk-, api_key=, etc.)
+    severity: critical
+    action: block_and_alert
+    apply_to: request
+    patterns:
+      - type: regex
+        pattern: "sk-[A-Za-z0-9]{32,}"
+
+  # ── Warning: Block and review ──────────────────────────────────────
+
+  - name: high_entropy_secret
+    description: High-entropy string that may be a secret or token
+    severity: warning
+    action: block_and_review
+    apply_to: request
+    patterns:
+      - type: entropy
+        min_entropy: 4.5
+        min_length: 32
+
+  # ── Warning: Redact and allow ──────────────────────────────────────
+
+  - name: social_security_number
+    description: US Social Security Number
+    severity: warning
+    action: redact_and_allow
+    apply_to: both
+    patterns:
+      - type: regex
+        pattern: "\\b\\d{3}-\\d{2}-\\d{4}\\b"
+
+  - name: credit_card_number
+    description: Credit card number (Visa, MasterCard, Amex)
+    severity: warning
+    action: redact_and_allow
+    apply_to: both
+    patterns:
+      - type: regex
+        pattern: "\\b(?:4[0-9]{12}(?:[0-9]{3})?|5[1-5][0-9]{14}|3[47][0-9]{13})\\b"
+
+  # ── Info: Log and allow ────────────────────────────────────────────
+
+  - name: email_address
+    description: Email address (logged for data flow tracking)
+    severity: warning
+    action: log_and_allow
+    apply_to: request
+    patterns:
+      - type: regex
+        pattern: "[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}"

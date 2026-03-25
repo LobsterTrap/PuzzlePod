@@ -1,0 +1,197 @@
+.\" puzzled(8) man page
+.\"
+.\" Originally designed at Red Hat LLC by Francis Chow (@openchow) and Adam Miller (@maxamillion)
+.\" Licensed under Apache-2.0
+.\"
+.TH PUZZLED 8 "2026-03-07" "puzzled 0.1.0" "System Administration"
+.SH NAME
+puzzled \- PuzzlePod governance daemon
+.SH SYNOPSIS
+.B puzzled
+[\fB\-\-config\fR \fIpath\fR]
+[\fB\-\-log\-level\fR \fIlevel\fR]
+[\fB\-\-bus\-type\fR \fItype\fR]
+.SH DESCRIPTION
+.B puzzled
+is the central governance daemon for PuzzlePod.
+It manages agent sandbox lifecycles using existing Linux kernel primitives,
+implementing the Fork\-Explore\-Commit workflow for autonomous AI agents.
+.PP
+.B puzzled
+runs as a systemd service (Type=notify) and exposes a D\-Bus API on the
+system bus at
+.BR org.lobstertrap.PuzzlePod1.Manager .
+.PP
+When an agent sandbox is created,
+.B puzzled
+performs the following:
+.IP \(bu 3
+Creates a new process via
+.BR clone3 (2)
+with PID, mount, and network namespace isolation.
+.IP \(bu 3
+Sets up an OverlayFS mount for copy\-on\-write filesystem branching.
+.IP \(bu 3
+Applies an irrevocable Landlock ruleset restricting filesystem and network access.
+.IP \(bu 3
+Loads a seccomp\-BPF filter blocking escape\-vector syscalls and gating
+.BR execve (2),
+.BR connect (2),
+and
+.BR bind (2)
+via USER_NOTIF.
+.IP \(bu 3
+Configures cgroup v2 resource limits (memory, CPU, I/O, PIDs).
+.IP \(bu 3
+Loads BPF LSM programs for exec counting and rate limiting.
+.IP \(bu 3
+Establishes fanotify monitoring for behavioral triggers.
+.PP
+At commit time,
+.B puzzled
+freezes the agent via
+.BR cgroup.freeze ,
+walks the OverlayFS upper layer to generate a diff, evaluates OPA/Rego
+governance policies, and either commits changes via a WAL\-based crash\-safe
+procedure or rolls back with zero residue.
+.PP
+All kernel enforcement mechanisms (Landlock, seccomp, namespaces, cgroups)
+are attached to the agent process and survive
+.B puzzled
+crashes. If
+.B puzzled
+restarts, it re\-discovers active branches from the state directory.
+.SH OPTIONS
+.TP
+.BI \-\-config " path"
+Path to the configuration file. Default:
+.IR /etc/puzzled/puzzled.conf .
+.TP
+.BI \-\-log\-level " level"
+Set the log level. One of:
+.BR trace ", " debug ", " info ", " warn ", " error .
+Default:
+.BR info .
+Overrides the
+.B log_level
+setting in the configuration file.
+.TP
+.BI \-\-bus\-type " type"
+D\-Bus bus type. One of:
+.BR system ", " session .
+Default:
+.BR system .
+Use
+.B session
+for development and testing.
+Overrides the
+.B bus_type
+setting in the configuration file.
+.SH CONFIGURATION
+See
+.BR puzzled.conf (5)
+for the configuration file format and available options.
+.PP
+The default configuration file is
+.IR /etc/puzzled/puzzled.conf .
+.SH SIGNALS
+.TP
+.B SIGHUP
+Reload agent profiles and OPA/Rego policies from disk without restarting
+the daemon. Active branches are not affected.
+.TP
+.B SIGTERM
+Initiate graceful shutdown. Active agent processes are signaled via
+.BR pidfd .
+Pending WAL entries are completed before exit.
+.TP
+.B SIGINT
+Same as SIGTERM.
+.SH FILES
+.TP
+.I /etc/puzzled/puzzled.conf
+Daemon configuration file. See
+.BR puzzled.conf (5).
+.TP
+.I /etc/puzzled/profiles/
+Directory containing agent profile YAML files. See
+.BR agent\-profile (5).
+.TP
+.I /etc/puzzled/policies/
+Directory containing OPA/Rego policy files for commit governance.
+.TP
+.I /var/lib/puzzled/branches/
+State directory for active and completed branches. Contains OverlayFS
+upper layers, work directories, and branch metadata.
+.TP
+.I /var/lib/puzzled/wal/
+Write\-ahead log directory for crash\-safe commit operations.
+.TP
+.I /usr/lib/systemd/system/puzzled.service
+systemd service unit.
+.TP
+.I /usr/lib/systemd/system/puzzle@.service
+systemd template unit for agent processes.
+.TP
+.I /usr/lib/systemd/system/puzzle.slice
+systemd slice for collective agent resource limits.
+.SH D\-BUS API
+.B puzzled
+registers the
+.B org.lobstertrap.PuzzlePod1.Manager
+interface on the system bus. See
+.I /usr/share/dbus\-1/interfaces/org.lobstertrap.PuzzlePod1.Manager.xml
+for the full introspection XML.
+.PP
+Key methods:
+.BR CreateBranch ,
+.BR CommitBranch ,
+.BR RollbackBranch ,
+.BR InspectBranch ,
+.BR ListBranches ,
+.BR DiffBranch ,
+.BR ListAgents ,
+.BR KillAgent ,
+.BR ReloadPolicy ,
+.BR QueryAuditEvents ,
+.BR ExportAuditEvents .
+.PP
+Key signals:
+.BR BranchCreated ,
+.BR BranchCommitted ,
+.BR BranchRolledBack ,
+.BR PolicyViolation ,
+.BR BehavioralTrigger .
+.SH SECURITY
+.B puzzled
+runs as root with minimal capabilities and is confined by:
+.IP \(bu 3
+SELinux type enforcement (puzzlepod_t domain)
+.IP \(bu 3
+systemd hardening directives (NoNewPrivileges, ProtectSystem=strict, etc.)
+.IP \(bu 3
+Capability bounding set restricted to CAP_SYS_ADMIN, CAP_SYS_PTRACE,
+CAP_SETUID, CAP_SETGID, CAP_NET_ADMIN
+.PP
+Agent processes are confined by independent, irrevocable kernel mechanisms:
+Landlock, seccomp\-BPF, PID namespace, mount namespace, network namespace,
+cgroups v2, BPF LSM, and SELinux (puzzlepod_t domain).
+.SH EXIT STATUS
+.TP
+.B 0
+Normal termination.
+.TP
+.B 1
+Fatal error (configuration, permissions, D\-Bus registration failure).
+.SH SEE ALSO
+.BR puzzlectl (1),
+.BR puzzled.conf (5),
+.BR agent\-profile (5),
+.BR systemd (1),
+.BR landlock (7),
+.BR seccomp (2),
+.BR clone3 (2),
+.BR cgroups (7),
+.BR selinux (8)
+.SH AUTHORS
+Francis Chow and the PuzzlePod contributors.

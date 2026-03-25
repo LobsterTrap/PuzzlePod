@@ -1,0 +1,337 @@
+# puzzled-dev.yaml — Lima VM for PuzzlePod development
+#
+# Usage:
+#   limactl create --name=puzzled-dev puzzled-dev.yaml
+#   limactl start puzzled-dev
+#   limactl shell puzzled-dev
+#
+# The VM provides a Fedora 42 environment with all kernel primitives
+# required by puzzled: Landlock, seccomp USER_NOTIF, BPF LSM, OverlayFS,
+# namespaces, cgroups v2, fanotify, XFS project quotas, pidfd.
+#
+# Your macOS project directory is mounted writable inside the VM.
+# Edit code on macOS, compile and test inside the VM.
+
+minimumLimaVersion: "2.0.0"
+
+# Use QEMU instead of vz (macOS Virtualization.framework) for better stability
+vmType: qemu
+
+images:
+- location: https://download.fedoraproject.org/pub/fedora/linux/releases/42/Cloud/aarch64/images/Fedora-Cloud-Base-Generic-42-1.1.aarch64.qcow2
+  arch: aarch64
+  digest: sha256:e10658419a8d50231037dc781c3155aa94180a8c7a74e5cac2a6b09eaa9342b7
+
+- location: https://download.fedoraproject.org/pub/fedora/linux/releases/42/Cloud/x86_64/images/Fedora-Cloud-Base-Generic-42-1.1.x86_64.qcow2
+  arch: x86_64
+  digest: sha256:e401a4db2e5e04d1967b6729774faa96da629bcf3ba90b67d8d9cce9906bec0f
+
+# --- VM Resources ---
+cpus: 4
+memory: 8GiB
+disk: 50GiB
+
+# --- Mounts ---
+# Mount the home directory writable so the project is accessible in the VM.
+# NOTE: {{.Dir}} does NOT work here — it resolves to the Lima instance directory
+# (~/.lima/<instance>/), not the directory containing this YAML file.
+mounts:
+- location: "~"
+  writable: true
+- location: /tmp/lima
+  writable: true
+
+# --- Provisioning ---
+# Install all development dependencies and configure the kernel environment
+provision:
+- mode: system
+  script: |
+    #!/bin/bash
+    set -eux -o pipefail
+
+    echo "=== PuzzlePod dev environment setup ==="
+
+    # -------------------------------------------------------
+    # 1. Install Rust toolchain and build dependencies
+    # -------------------------------------------------------
+    dnf install -y \
+      gcc gcc-c++ make cmake pkg-config \
+      openssl-devel \
+      dbus-devel \
+      systemd-devel \
+      clang llvm \
+      libseccomp-devel \
+      bpftool libbpf-devel \
+      nftables \
+      kexec-tools \
+      xfsprogs xfsprogs-devel \
+      fio \
+      jq \
+      git \
+      strace ltrace \
+      perf \
+      audit \
+      ima-evm-utils \
+      util-linux  # for unshare, nsenter
+      fuse-overlayfs fuse3  # for rootless demo
+
+    # Install Rust via rustup (system-wide)
+    if ! command -v rustup &>/dev/null; then
+      curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | \
+        sh -s -- -y --default-toolchain stable --profile default
+      # Make rust available system-wide
+      ln -sf /root/.cargo/bin/* /usr/local/bin/
+    fi
+
+    # Install Rust components
+    /root/.cargo/bin/rustup component add clippy rustfmt
+
+    # Install cargo tools for development
+    /root/.cargo/bin/cargo install cargo-watch 2>/dev/null || true
+
+    # -------------------------------------------------------
+    # 1b. Mount securityfs (needed for Landlock ABI check, test scripts)
+    # -------------------------------------------------------
+    if ! mountpoint -q /sys/kernel/security 2>/dev/null; then
+      mount -t securityfs securityfs /sys/kernel/security
+    fi
+    # Persist across reboots
+    if ! grep -q securityfs /etc/fstab; then
+      echo "securityfs /sys/kernel/security securityfs defaults 0 0" >> /etc/fstab
+    fi
+
+    # -------------------------------------------------------
+    # 2. Verify kernel primitives
+    # -------------------------------------------------------
+    echo ""
+    echo "=== Kernel primitive verification ==="
+    KERNEL=$(uname -r)
+    echo "Kernel: $KERNEL"
+
+    # Check kernel configs
+    KCONFIG="/boot/config-${KERNEL}"
+    if [ ! -f "$KCONFIG" ]; then
+      KCONFIG="/proc/config.gz"
+    fi
+
+    check_config() {
+      local key=$1
+      local label=$2
+      if [ -f "/boot/config-${KERNEL}" ]; then
+        if grep -q "^${key}=[ym]" "/boot/config-${KERNEL}"; then
+          echo "  [OK] ${label} (${key})"
+        else
+          echo "  [MISSING] ${label} (${key})"
+        fi
+      elif [ -f /proc/config.gz ]; then
+        if zcat /proc/config.gz | grep -q "^${key}=[ym]"; then
+          echo "  [OK] ${label} (${key})"
+        else
+          echo "  [MISSING] ${label} (${key})"
+        fi
+      else
+        echo "  [SKIP] Cannot verify ${label} — no kernel config found"
+      fi
+    }
+
+    check_config CONFIG_OVERLAY_FS "OverlayFS"
+    check_config CONFIG_SECURITY_LANDLOCK "Landlock LSM"
+    check_config CONFIG_BPF_LSM "BPF LSM"
+    check_config CONFIG_SECCOMP "seccomp"
+    check_config CONFIG_SECCOMP_FILTER "seccomp-BPF"
+    check_config CONFIG_USER_NS "User namespaces"
+    check_config CONFIG_PID_NS "PID namespaces"
+    check_config CONFIG_NET_NS "Network namespaces"
+    check_config CONFIG_CGROUPS "cgroups"
+    check_config CONFIG_CGROUP_BPF "cgroup BPF"
+    check_config CONFIG_MEMCG "Memory cgroup"
+    check_config CONFIG_BLK_CGROUP "Block I/O cgroup"
+    check_config CONFIG_CGROUP_PIDS "PIDs cgroup"
+    check_config CONFIG_CGROUP_FREEZER "cgroup freezer"
+    check_config CONFIG_FANOTIFY "fanotify"
+    check_config CONFIG_AUDIT "Linux Audit"
+    check_config CONFIG_IMA "IMA"
+    check_config CONFIG_NF_TABLES "nftables"
+
+    # Verify Landlock ABI version
+    if [ -f /sys/kernel/security/landlock/abi_version ]; then
+      ABI=$(cat /sys/kernel/security/landlock/abi_version)
+      echo "  [OK] Landlock ABI version: ${ABI} (need >= 4 for network)"
+    else
+      echo "  [WARN] Landlock not available via /sys/kernel/security/landlock/"
+    fi
+
+    # Verify cgroups v2
+    if mount | grep -q "cgroup2"; then
+      echo "  [OK] cgroups v2 (unified hierarchy) mounted"
+    else
+      echo "  [WARN] cgroups v2 not detected"
+    fi
+
+    # Verify BPF LSM is in the active LSM list
+    if [ -f /sys/kernel/security/lsm ]; then
+      LSM=$(cat /sys/kernel/security/lsm)
+      echo "  LSM list: ${LSM}"
+      if echo "$LSM" | grep -q "bpf"; then
+        echo "  [OK] BPF LSM is active"
+      else
+        echo "  [WARN] BPF LSM not in active LSM list — may need lsm= kernel parameter"
+      fi
+      if echo "$LSM" | grep -q "landlock"; then
+        echo "  [OK] Landlock LSM is active"
+      else
+        echo "  [WARN] Landlock LSM not in active LSM list"
+      fi
+    fi
+
+    # -------------------------------------------------------
+    # 3. Enable BPF LSM if not already active
+    # -------------------------------------------------------
+    if [ -f /sys/kernel/security/lsm ]; then
+      if ! cat /sys/kernel/security/lsm | grep -q "bpf"; then
+        echo ""
+        echo "=== Enabling BPF LSM via kernel command line ==="
+        # Add bpf to LSM list via GRUB
+        if [ -f /etc/default/grub ]; then
+          if ! grep -q "lsm=.*bpf" /etc/default/grub; then
+            CURRENT_LSM=$(cat /sys/kernel/security/lsm)
+            # Append bpf to the LSM list
+            sed -i "s/GRUB_CMDLINE_LINUX=\"/GRUB_CMDLINE_LINUX=\"lsm=${CURRENT_LSM},bpf /" /etc/default/grub
+            grub2-mkconfig -o /boot/grub2/grub.cfg 2>/dev/null || true
+            echo "  BPF LSM added to kernel command line — will be active after reboot"
+            echo "  Run: limactl stop puzzled-dev && limactl start puzzled-dev"
+          fi
+        fi
+      fi
+    fi
+
+    # -------------------------------------------------------
+    # 4. Configure cgroups v2 delegation for development
+    # -------------------------------------------------------
+    # Allow the lima user to manage cgroup subtrees (for testing without root)
+    mkdir -p /etc/systemd/system/user@.service.d
+    cat > /etc/systemd/system/user@.service.d/delegate.conf << 'DELEGATE'
+    [Service]
+    Delegate=cpu cpuset io memory pids
+    DELEGATE
+    systemctl daemon-reload
+
+    # -------------------------------------------------------
+    # 5. Create XFS test partition (loopback)
+    # -------------------------------------------------------
+    XFS_IMG="/var/lib/puzzled-test-xfs.img"
+    XFS_MNT="/var/lib/puzzled/test-xfs"
+    if [ ! -f "$XFS_IMG" ]; then
+      echo ""
+      echo "=== Creating XFS test partition (2GB loopback) ==="
+      dd if=/dev/zero of="$XFS_IMG" bs=1M count=2048 status=progress
+      mkfs.xfs -f "$XFS_IMG"
+      mkdir -p "$XFS_MNT"
+      mount -o loop,prjquota "$XFS_IMG" "$XFS_MNT"
+      # Enable project quotas
+      xfs_quota -x -c 'project -s -p /var/lib/puzzled/test-xfs 1' "$XFS_MNT" 2>/dev/null || true
+      echo "  [OK] XFS test partition at ${XFS_MNT} with project quotas"
+
+      # Add to fstab for persistence across reboots
+      echo "${XFS_IMG} ${XFS_MNT} xfs loop,prjquota 0 0" >> /etc/fstab
+    fi
+
+    # -------------------------------------------------------
+    # 6. Create puzzled directory structure
+    # -------------------------------------------------------
+    mkdir -p /var/lib/puzzled/{branches,journal,staging}
+    mkdir -p /var/log/puzzled/{changesets,rejected}
+    mkdir -p /etc/puzzled/{profiles,policies}
+    mkdir -p /run/puzzled
+
+    # -------------------------------------------------------
+    # 7. Set up D-Bus policy for puzzled development
+    # -------------------------------------------------------
+    cat > /etc/dbus-1/system.d/org.lobstertrap.PuzzlePod1.conf << 'DBUS'
+    <!DOCTYPE busconfig PUBLIC "-//freedesktop//DTD D-BUS Bus Configuration 1.0//EN"
+     "http://www.freedesktop.org/standards/dbus/1.0/busconfig.dtd">
+    <busconfig>
+      <!-- Allow root to own the puzzled bus name -->
+      <policy user="root">
+        <allow own="org.lobstertrap.PuzzlePod1"/>
+        <allow send_destination="org.lobstertrap.PuzzlePod1"/>
+        <allow receive_sender="org.lobstertrap.PuzzlePod1"/>
+      </policy>
+
+      <!-- Allow all users to call puzzled methods (for puzzlectl) -->
+      <policy context="default">
+        <allow send_destination="org.lobstertrap.PuzzlePod1"/>
+        <allow receive_sender="org.lobstertrap.PuzzlePod1"/>
+      </policy>
+    </busconfig>
+    DBUS
+    systemctl reload dbus 2>/dev/null || true
+
+    # -------------------------------------------------------
+    # 8. Print summary
+    # -------------------------------------------------------
+    echo ""
+    echo "=========================================="
+    echo "  PuzzlePod dev environment ready"
+    echo "=========================================="
+    echo ""
+    echo "  Rust:     $(rustc --version 2>/dev/null || echo 'not found')"
+    echo "  Cargo:    $(cargo --version 2>/dev/null || echo 'not found')"
+    echo "  Clang:    $(clang --version 2>/dev/null | head -1 || echo 'not found')"
+    echo "  bpftool:  $(bpftool version 2>/dev/null | head -1 || echo 'not found')"
+    echo "  Kernel:   $(uname -r)"
+    echo ""
+    echo "  Project:  (your project directory, mounted from host)"
+    echo "  XFS test: /var/lib/puzzled/test-xfs"
+    echo "  D-Bus:    org.lobstertrap.PuzzlePod1"
+    echo ""
+    echo "  To build: cd <project-dir> && cargo build --workspace"
+    echo "  To test:  cargo test --workspace"
+    echo ""
+
+# Make rust available to the lima user too
+- mode: user
+  script: |
+    #!/bin/bash
+    set -eux -o pipefail
+    if [ ! -d "$HOME/.cargo" ]; then
+      curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | \
+        sh -s -- -y --default-toolchain stable --profile default
+      source "$HOME/.cargo/env"
+      rustup component add clippy rustfmt
+    fi
+
+# --- Probes ---
+# Wait for provisioning to complete
+probes:
+- description: "Rust toolchain installed"
+  script: |
+    #!/bin/bash
+    set -eux -o pipefail
+    test -f /usr/local/bin/cargo || test -f /root/.cargo/bin/cargo
+  hint: |
+    Rust toolchain is still installing. Wait a moment and try again.
+
+- description: "puzzled directories created"
+  script: |
+    #!/bin/bash
+    set -eux -o pipefail
+    test -d /var/lib/puzzled/branches
+  hint: |
+    Provisioning is still running. Wait for it to complete.
+
+# --- Message ---
+message: |
+  PuzzlePod development VM is ready.
+
+  Recommended: use the convenience script instead of raw limactl commands:
+    ./scripts/lima-dev.sh shell      # Enter VM at project directory
+    ./scripts/lima-dev.sh build      # cargo build --workspace
+    ./scripts/lima-dev.sh test       # cargo test --workspace
+
+  Manual commands:
+    limactl shell puzzled-dev
+    limactl shell puzzled-dev -- sudo -i   # Root shell
+    limactl shell puzzled-dev -- cat /sys/kernel/security/lsm
+    limactl stop puzzled-dev
+    limactl start puzzled-dev

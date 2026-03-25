@@ -1,0 +1,99 @@
+name: web-scraper
+description: >
+  Profile for web scraping and data extraction agents. Gated network access
+  to a broad set of public domains. Supports Python with HTTP clients and
+  common download utilities.
+
+filesystem:
+  read_allowlist:
+    - /usr/share
+    - /usr/lib
+    - /usr/lib64
+    - /etc/ssl/certs
+    - /etc/pki/tls
+    - /etc/resolv.conf
+  write_allowlist: []
+  denylist:
+    - /etc/shadow
+    - /etc/gshadow
+    - /etc/ssh
+    - /root/.ssh
+    - /etc/sudoers
+    - /etc/sudoers.d
+  # N15: Defense-in-depth read/write denylists
+  read_denylist:
+    - /etc/shadow
+    - /etc/gshadow
+    - /etc/sudoers
+    - /etc/sudoers.d
+  write_denylist:
+    - /etc
+    - /usr
+    - /boot
+    - /sbin
+    - /bin
+    - /lib
+    - /lib64
+    - /var/log
+    - /root
+
+exec_allowlist:
+  - /usr/bin/python3
+  - /usr/bin/curl
+  - /usr/bin/wget
+  - /usr/bin/cat
+  - /usr/bin/ls
+  - /usr/bin/head
+  - /usr/bin/tail
+  - /usr/bin/grep
+  - /usr/bin/wc
+  - /usr/bin/jq
+  - /usr/bin/sed
+
+# T24: Expanded exec_denylist — privilege escalation + exfiltration vectors
+exec_denylist:
+  - nsenter
+  - unshare
+  - chroot
+  - mount
+  - strace
+  - gdb
+  - su
+  - sudo
+  - pkexec
+  - dd
+  - nc
+  - ncat
+  - socat
+  - capsh
+  - setcap
+  - modprobe
+  - insmod
+  - kexec
+  - bpftool
+
+resource_limits:
+  memory_bytes: 536870912      # 512 MiB
+  cpu_shares: 80
+  io_weight: 80
+  max_pids: 32
+  storage_quota_mb: 1024
+  inode_quota: 10000
+
+network:
+  mode: Gated
+  # H88: Removed overly broad TLD wildcards (*.org, *.gov, *.edu) that would
+  # allow access to any site under those TLDs.
+  allowed_domains:
+    - "*.wikipedia.org"
+    - "*.wikimedia.org"
+
+behavioral:
+  max_deletions: 20
+  max_reads_per_minute: 500
+  credential_access_alert: true
+
+seccomp_mode: Permissive
+allow_symlinks: false
+
+fail_mode: FailClosed

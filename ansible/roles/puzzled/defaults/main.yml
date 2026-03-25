@@ -1,0 +1,29 @@
+---
+# Default variables for puzzled role
+
+# Package names
+puzzled_packages:
+  - puzzled
+  - puzzlectl
+  - puzzled-selinux
+
+# Configuration
+puzzled_branch_root: /var/lib/puzzled/branches
+puzzled_profiles_dir: /etc/puzzled/profiles
+puzzled_policies_dir: /etc/puzzled/policies
+puzzled_max_branches: 64
+puzzled_bus_type: system
+puzzled_fs_type: xfs
+puzzled_log_level: info
+puzzled_watchdog_timeout_secs: 30
+
+# SELinux
+puzzled_selinux_enabled: true
+
+# BPF LSM
+puzzled_bpf_lsm_enabled: true
+puzzled_bpf_obj_path: /usr/lib/puzzled/exec_guard.bpf.o
+
+# Service settings
+puzzled_service_enabled: true
+puzzled_service_started: true

@@ -1,0 +1,232 @@
+<mxfile host="app.diagrams.net" modified="2026-03-05T00:00:00.000Z" agent="Claude" version="21.0.0">
+  <diagram id="fec-flow" name="Fork-Explore-Commit Data Flow">
+    <mxGraphModel dx="1800" dy="1400" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1600" pageHeight="1400" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <!-- Title -->
+        <mxCell id="title" value="&lt;b&gt;Fork, Explore, Commit — Data Flow&lt;/b&gt;" style="text;html=1;align=center;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;fontSize=18;" vertex="1" parent="1">
+          <mxGeometry x="520" y="20" width="400" height="40" as="geometry" />
+        </mxCell>
+
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <!-- PHASE 1: FORK -->
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <mxCell id="fork-phase" value="&lt;b&gt;1. FORK&lt;/b&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;verticalAlign=top;fontSize=16;arcSize=5;" vertex="1" parent="1">
+          <mxGeometry x="40" y="80" width="480" height="580" as="geometry" />
+        </mxCell>
+
+        <!-- Fork steps -->
+        <mxCell id="f1" value="&lt;b&gt;1a.&lt;/b&gt; Create OverlayFS dirs&lt;br&gt;&lt;font size=&quot;1&quot;&gt;upper/ work/ merged/&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="70" y="115" width="200" height="45" as="geometry" />
+        </mxCell>
+        <mxCell id="f2" value="&lt;b&gt;1b.&lt;/b&gt; Mount OverlayFS&lt;br&gt;&lt;font size=&quot;1&quot;&gt;lower=base, upper=branch&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="70" y="175" width="200" height="45" as="geometry" />
+        </mxCell>
+        <mxCell id="f3" value="&lt;b&gt;1c.&lt;/b&gt; Create cgroup scope&lt;br&gt;&lt;font size=&quot;1&quot;&gt;memory, cpu, pids limits&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="70" y="235" width="200" height="45" as="geometry" />
+        </mxCell>
+        <mxCell id="f4" value="&lt;b&gt;1d.&lt;/b&gt; Create socketpair&lt;br&gt;&lt;font size=&quot;1&quot;&gt;parent↔child coordination + SCM_RIGHTS&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="70" y="295" width="200" height="45" as="geometry" />
+        </mxCell>
+        <mxCell id="f5" value="&lt;b&gt;1e.&lt;/b&gt; clone3(NEWPID|NEWNS|NEWNET)&lt;br&gt;&lt;font size=&quot;1&quot;&gt;Returns pidfd for race-free monitoring&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;fontStyle=0;" vertex="1" parent="1">
+          <mxGeometry x="70" y="355" width="230" height="45" as="geometry" />
+        </mxCell>
+        <mxCell id="f6" value="&lt;b&gt;1f.&lt;/b&gt; Move child → cgroup&lt;br&gt;&lt;font size=&quot;1&quot;&gt;Write PID to cgroup.procs&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="70" y="415" width="200" height="45" as="geometry" />
+        </mxCell>
+        <mxCell id="f7" value="&lt;b&gt;1g.&lt;/b&gt; Signal child: apply Landlock&lt;br&gt;&lt;font size=&quot;1&quot;&gt;landlock_restrict_self() — IRREVOCABLE&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;fontStyle=0;" vertex="1" parent="1">
+          <mxGeometry x="70" y="475" width="240" height="45" as="geometry" />
+        </mxCell>
+        <mxCell id="f8" value="&lt;b&gt;1h.&lt;/b&gt; Load seccomp-BPF filter&lt;br&gt;&lt;font size=&quot;1&quot;&gt;seccomp() — IRREVOCABLE&lt;br&gt;Send notify_fd → parent via SCM_RIGHTS&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;fontStyle=0;" vertex="1" parent="1">
+          <mxGeometry x="70" y="535" width="240" height="55" as="geometry" />
+        </mxCell>
+        <mxCell id="f9" value="&lt;b&gt;1i.&lt;/b&gt; XFS project quotas&lt;br&gt;&lt;font size=&quot;1&quot;&gt;Storage + inode limits (best-effort)&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="70" y="605" width="200" height="40" as="geometry" />
+        </mxCell>
+
+        <!-- Arrows between fork steps -->
+        <mxCell id="f1-f2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;exitX=0.5;exitY=1;entryX=0.5;entryY=0;strokeColor=#666666;" edge="1" source="f1" target="f2" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="f2-f3" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;exitX=0.5;exitY=1;entryX=0.5;entryY=0;strokeColor=#666666;" edge="1" source="f2" target="f3" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="f3-f4" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;exitX=0.5;exitY=1;entryX=0.5;entryY=0;strokeColor=#666666;" edge="1" source="f3" target="f4" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="f4-f5" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;exitX=0.5;exitY=1;entryX=0.5;entryY=0;strokeColor=#666666;" edge="1" source="f4" target="f5" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="f5-f6" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;exitX=0.5;exitY=1;entryX=0.5;entryY=0;strokeColor=#666666;" edge="1" source="f5" target="f6" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="f6-f7" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;exitX=0.5;exitY=1;entryX=0.5;entryY=0;strokeColor=#666666;" edge="1" source="f6" target="f7" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="f7-f8" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;exitX=0.5;exitY=1;entryX=0.5;entryY=0;strokeColor=#666666;" edge="1" source="f7" target="f8" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="f8-f9" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;exitX=0.5;exitY=1;entryX=0.5;entryY=0;strokeColor=#666666;" edge="1" source="f8" target="f9" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Result of fork -->
+        <mxCell id="fork-result" value="&lt;b&gt;Result:&lt;/b&gt; Agent is PID 1 in isolated&lt;br&gt;PID/Mount/Net namespace with&lt;br&gt;irrevocable Landlock + seccomp" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="340" y="200" width="160" height="70" as="geometry" />
+        </mxCell>
+
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <!-- PHASE 2: EXPLORE -->
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <mxCell id="explore-phase" value="&lt;b&gt;2. EXPLORE&lt;/b&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;verticalAlign=top;fontSize=16;arcSize=5;" vertex="1" parent="1">
+          <mxGeometry x="560" y="80" width="480" height="580" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e-agent" value="&lt;b&gt;Agent executes&lt;/b&gt;&lt;br&gt;LLM-driven code generation,&lt;br&gt;file edits, tool use" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="600" y="120" width="200" height="55" as="geometry" />
+        </mxCell>
+
+        <!-- Explore enforcement layers -->
+        <mxCell id="e-overlay" value="&lt;b&gt;OverlayFS captures writes&lt;/b&gt;&lt;br&gt;All changes go to upper layer&lt;br&gt;Base filesystem untouched" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="600" y="195" width="200" height="55" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e-landlock" value="&lt;b&gt;Landlock restricts FS access&lt;/b&gt;&lt;br&gt;read/write allowlists enforced&lt;br&gt;on every open(), &lt; 1 μs" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="600" y="265" width="200" height="55" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e-seccomp-static" value="&lt;b&gt;seccomp static deny&lt;/b&gt;&lt;br&gt;57 escape syscalls → KillProcess&lt;br&gt;ptrace, mount, kexec, bpf, shmget..." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="600" y="335" width="200" height="55" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e-seccomp-notif" value="&lt;b&gt;seccomp USER_NOTIF&lt;/b&gt;&lt;br&gt;execve → puzzled inspects path&lt;br&gt;connect → puzzled checks allowlist&lt;br&gt;~50-100 μs per gated call" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="600" y="405" width="210" height="65" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e-cgroup" value="&lt;b&gt;cgroups enforce limits&lt;/b&gt;&lt;br&gt;OOM killer on memory breach&lt;br&gt;PID limit prevents fork bomb" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="600" y="485" width="200" height="55" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e-fanotify" value="&lt;b&gt;fanotify monitors behavior&lt;/b&gt;&lt;br&gt;Mass deletion → trigger&lt;br&gt;Credential access → alert&lt;br&gt;Excessive reads → trigger" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="600" y="555" width="200" height="65" as="geometry" />
+        </mxCell>
+
+        <!-- Explore side: network gating -->
+        <mxCell id="e-netgating" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e6d0de;strokeColor=#996185;verticalAlign=top;arcSize=8;" vertex="1" parent="1">
+          <mxGeometry x="840" y="120" width="180" height="310" as="geometry" />
+        </mxCell>
+        <mxCell id="e-netgating-title" value="&lt;b&gt;Network Gating&lt;/b&gt;" style="text;html=1;align=center;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="870" y="125" width="110" height="25" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e-net-get" value="&lt;b&gt;GET&lt;/b&gt; allowed domain&lt;br&gt;→ forward immediately" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="855" y="160" width="150" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="e-net-post" value="&lt;b&gt;POST/PUT/DELETE&lt;/b&gt;&lt;br&gt;→ journal for replay" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="855" y="210" width="150" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="e-net-blocked" value="&lt;b&gt;Blocked domain&lt;/b&gt;&lt;br&gt;→ 403 Forbidden" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="855" y="260" width="150" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="e-net-journal" value="&lt;b&gt;NetworkJournal&lt;/b&gt;&lt;br&gt;NDJSON on disk&lt;br&gt;(discarded on rollback)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="855" y="310" width="150" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="e-net-budget" value="&lt;b&gt;BudgetManager&lt;/b&gt;&lt;br&gt;Restricted→Standard→Extended&lt;br&gt;tracks clean commits" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="855" y="375" width="150" height="55" as="geometry" />
+        </mxCell>
+
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <!-- PHASE 3: COMMIT / ROLLBACK -->
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <mxCell id="commit-phase" value="&lt;b&gt;3. COMMIT / ROLLBACK&lt;/b&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;verticalAlign=top;fontSize=16;arcSize=5;" vertex="1" parent="1">
+          <mxGeometry x="1080" y="80" width="480" height="580" as="geometry" />
+        </mxCell>
+
+        <mxCell id="c1" value="&lt;b&gt;3a.&lt;/b&gt; cgroup.freeze&lt;br&gt;&lt;font size=&quot;1&quot;&gt;Freeze all agent processes (TOCTOU protection)&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="1110" y="120" width="240" height="45" as="geometry" />
+        </mxCell>
+
+        <mxCell id="c2" value="&lt;b&gt;3b.&lt;/b&gt; Walk upper layer → generate diff&lt;br&gt;&lt;font size=&quot;1&quot;&gt;SHA256 checksum filtering for copy-up artifacts&lt;br&gt;fanotify touched_files for incremental skip&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="1110" y="180" width="260" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="c3" value="&lt;b&gt;3c.&lt;/b&gt; Check cross-branch conflicts&lt;br&gt;&lt;font size=&quot;1&quot;&gt;ConflictDetector: BothModified, BothCreated,&lt;br&gt;ModifiedAndDeleted → Reject or LastWriterWins&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="1110" y="255" width="270" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="c4" value="&lt;b&gt;3d.&lt;/b&gt; Evaluate OPA/Rego policy&lt;br&gt;&lt;font size=&quot;1&quot;&gt;6 governance rules checked against changeset&lt;br&gt;Compiled to Wasm, executed via wasmtime&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="1110" y="330" width="270" height="60" as="geometry" />
+        </mxCell>
+
+        <!-- Decision diamond -->
+        <mxCell id="c-decision" value="&lt;b&gt;Policy&lt;br&gt;decision?&lt;/b&gt;" style="rhombus;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="1190" y="410" width="110" height="70" as="geometry" />
+        </mxCell>
+
+        <!-- Approve path -->
+        <mxCell id="c-approve" value="&lt;b&gt;3e.&lt;/b&gt; WAL-based commit&lt;br&gt;&lt;font size=&quot;1&quot;&gt;1. Write WAL log entry&lt;br&gt;2. renameat2(RENAME_EXCHANGE)&lt;br&gt;3. Mark WAL complete&lt;br&gt;4. Replay journaled network requests&lt;br&gt;5. Update BudgetManager (clean commit)&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="1100" y="510" width="210" height="110" as="geometry" />
+        </mxCell>
+
+        <!-- Reject path -->
+        <mxCell id="c-reject" value="&lt;b&gt;3f.&lt;/b&gt; Rollback&lt;br&gt;&lt;font size=&quot;1&quot;&gt;1. rm -rf upper/&lt;br&gt;2. Discard network journal&lt;br&gt;3. Update BudgetManager (violation)&lt;br&gt;4. Zero residue&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="1340" y="510" width="200" height="100" as="geometry" />
+        </mxCell>
+
+        <!-- Arrows for commit flow -->
+        <mxCell id="c1-c2" style="exitX=0.5;exitY=1;entryX=0.5;entryY=0;strokeColor=#666666;" edge="1" source="c1" target="c2" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="c2-c3" style="exitX=0.5;exitY=1;entryX=0.5;entryY=0;strokeColor=#666666;" edge="1" source="c2" target="c3" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="c3-c4" style="exitX=0.5;exitY=1;entryX=0.5;entryY=0;strokeColor=#666666;" edge="1" source="c3" target="c4" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="c4-decision" style="exitX=0.5;exitY=1;entryX=0.5;entryY=0;strokeColor=#666666;" edge="1" source="c4" target="c-decision" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Decision arrows -->
+        <mxCell id="decision-approve" style="exitX=0;exitY=1;entryX=0.5;entryY=0;strokeColor=#82b366;strokeWidth=2;" edge="1" source="c-decision" target="c-approve" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="approve-label" value="&lt;font color=&quot;#82b366&quot;&gt;&lt;b&gt;APPROVED&lt;/b&gt;&lt;/font&gt;" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontSize=10;" vertex="1" connectable="0" parent="decision-approve">
+          <mxGeometry x="-0.3" relative="1" as="geometry">
+            <mxPoint x="-30" as="offset" />
+          </mxGeometry>
+        </mxCell>
+
+        <mxCell id="decision-reject" style="exitX=1;exitY=1;entryX=0.5;entryY=0;strokeColor=#b85450;strokeWidth=2;" edge="1" source="c-decision" target="c-reject" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="reject-label" value="&lt;font color=&quot;#b85450&quot;&gt;&lt;b&gt;REJECTED&lt;/b&gt;&lt;/font&gt;" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontSize=10;" vertex="1" connectable="0" parent="decision-reject">
+          <mxGeometry x="-0.3" relative="1" as="geometry">
+            <mxPoint x="30" as="offset" />
+          </mxGeometry>
+        </mxCell>
+
+        <!-- Audit events -->
+        <mxCell id="c-audit" value="&lt;b&gt;AuditStore&lt;/b&gt;&lt;br&gt;Every action logged to&lt;br&gt;NDJSON + Linux Audit netlink" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=10;dashed=1;" vertex="1" parent="1">
+          <mxGeometry x="1400" y="130" width="150" height="55" as="geometry" />
+        </mxCell>
+
+        <!-- Phase arrows -->
+        <mxCell id="fork-explore" style="exitX=1;exitY=0.5;entryX=0;entryY=0.5;strokeColor=#333333;strokeWidth=3;" edge="1" source="fork-phase" target="explore-phase" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="explore-commit" style="exitX=1;exitY=0.5;entryX=0;entryY=0.5;strokeColor=#333333;strokeWidth=3;" edge="1" source="explore-phase" target="commit-phase" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Bottom note -->
+        <mxCell id="bottom-note" value="&lt;b&gt;Key invariant:&lt;/b&gt; The base filesystem is NEVER modified during Fork or Explore.&lt;br&gt;All agent writes go to the OverlayFS upper layer. Only a policy-approved Commit touches the base." style="text;html=1;align=center;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=#666666;fillColor=#f5f5f5;fontSize=11;rounded=1;" vertex="1" parent="1">
+          <mxGeometry x="320" y="690" width="620" height="40" as="geometry" />
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

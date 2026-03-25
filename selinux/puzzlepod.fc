@@ -1,0 +1,36 @@
+# SELinux file contexts for PuzzlePod
+#
+# Run restorecon after installation:
+#   restorecon -R /usr/bin/puzzled /usr/bin/puzzlectl /etc/puzzled /var/lib/puzzled /var/log/puzzled
+
+# N14: Daemon binary — path matches ExecStart=/usr/bin/puzzled in puzzled.service
+/usr/bin/puzzled	--	gen_context(system_u:object_r:puzzled_exec_t,s0)
+
+# CLI tool binary
+/usr/bin/puzzlectl	--	gen_context(system_u:object_r:puzzlectl_exec_t,s0)
+
+# Configuration directory
+/etc/puzzled(/.*)?		gen_context(system_u:object_r:puzzled_conf_t,s0)
+/etc/puzzled/profiles(/.*)?	gen_context(system_u:object_r:puzzled_profile_t,s0)
+/etc/puzzled/policies(/.*)?	gen_context(system_u:object_r:puzzled_policy_t,s0)
+
+# State directory
+/var/lib/puzzled(/.*)?		gen_context(system_u:object_r:puzzled_var_lib_t,s0)
+
+# WAL directory
+/var/lib/puzzled/wal(/.*)?	gen_context(system_u:object_r:puzzled_wal_t,s0)
+
+# Branch directories
+/var/lib/puzzled/branches(/.*)?	gen_context(system_u:object_r:puzzlepod_branch_t,s0)
+
+# Log directory
+/var/log/puzzled(/.*)?		gen_context(system_u:object_r:puzzled_log_t,s0)
+
+# Q9: Runtime directory (/run/puzzled — pidfiles, sockets)
+/run/puzzled(/.*)?		gen_context(system_u:object_r:puzzled_var_run_t,s0)
+
+# Q10/S16: puzzle-podman is a CLI wrapper (like puzzlectl), not the daemon
+/usr/bin/puzzle-podman	--	gen_context(system_u:object_r:puzzlectl_exec_t,s0)
+
+# systemd unit
+/usr/lib/systemd/system/puzzled\.service	--	gen_context(system_u:object_r:puzzled_unit_file_t,s0)

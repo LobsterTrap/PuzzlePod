@@ -1,0 +1,251 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/LobsterTrap/PuzzlePod/schemas/profile.schema.json",
+  "title": "PuzzlePod Agent Profile",
+  "description": "Schema for validating PuzzlePod agent profile YAML files. Profiles define per-agent access control including filesystem permissions, executable allowlists, resource limits, network policy, behavioral triggers, and failure modes.",
+  "type": "object",
+  "required": [
+    "name",
+    "description",
+    "filesystem",
+    "exec_allowlist",
+    "resource_limits",
+    "network",
+    "behavioral"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "name": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]*$",
+      "minLength": 1,
+      "maxLength": 64,
+      "description": "Unique identifier for the profile. Must be lowercase alphanumeric with hyphens."
+    },
+    "description": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 1024,
+      "description": "Human-readable description of the profile's purpose and scope."
+    },
+    "filesystem": {
+      "type": "object",
+      "required": [
+        "read_allowlist",
+        "write_allowlist",
+        "denylist"
+      ],
+      "additionalProperties": false,
+      "description": "Filesystem access control lists applied via Landlock LSM.",
+      "properties": {
+        "read_allowlist": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^/"
+          },
+          "description": "List of absolute paths the agent is permitted to read. Paths are recursive (include all descendants)."
+        },
+        "write_allowlist": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^/"
+          },
+          "description": "List of absolute paths the agent is permitted to write. Paths are recursive. The agent's branch working directory is always implicitly writable."
+        },
+        "denylist": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^/"
+          },
+          "description": "List of absolute paths the agent is denied access to. Denylist takes precedence over allowlists."
+        }
+      }
+    },
+    "exec_allowlist": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^/"
+      },
+      "minItems": 1,
+      "description": "List of absolute paths to executables the agent is permitted to run. Glob patterns (e.g., /usr/bin/*) are supported."
+    },
+    "exec_denylist": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^/"
+      },
+      "description": "List of absolute paths to executables the agent is explicitly denied from running. Denylist takes precedence over exec_allowlist."
+    },
+    "read_denylist": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^/"
+      },
+      "description": "List of absolute paths the agent is explicitly denied from reading. Denylist takes precedence over filesystem.read_allowlist."
+    },
+    "write_denylist": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^/"
+      },
+      "description": "List of absolute paths the agent is explicitly denied from writing. Denylist takes precedence over filesystem.write_allowlist."
+    },
+    "capabilities": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^CAP_"
+      },
+      "description": "List of Linux capabilities (e.g., CAP_NET_RAW) to grant to the agent process. Empty list means no additional capabilities beyond the minimal set."
+    },
+    "resource_limits": {
+      "type": "object",
+      "required": [
+        "memory_bytes",
+        "cpu_shares",
+        "io_weight",
+        "max_pids",
+        "storage_quota_mb",
+        "inode_quota"
+      ],
+      "additionalProperties": false,
+      "description": "Resource limits enforced via cgroups v2 and XFS project quotas.",
+      "properties": {
+        "memory_bytes": {
+          "type": "integer",
+          "minimum": 16777216,
+          "maximum": 68719476736,
+          "default": 268435456,
+          "description": "Maximum memory in bytes for the agent's cgroup. Minimum 16 MiB, maximum 64 GiB."
+        },
+        "cpu_shares": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10000,
+          "default": 100,
+          "description": "CPU shares (relative weight) for the agent's cgroup. Higher values get proportionally more CPU time."
+        },
+        "io_weight": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10000,
+          "default": 100,
+          "description": "I/O weight (relative priority) for the agent's cgroup. Maps to cgroup v2 io.weight."
+        },
+        "max_pids": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 32768,
+          "default": 64,
+          "description": "Maximum number of processes (PIDs) the agent may create. Enforced via cgroup v2 pids.max."
+        },
+        "storage_quota_mb": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1048576,
+          "default": 1024,
+          "description": "Maximum storage in megabytes for the agent's OverlayFS upper layer. Enforced via XFS project quotas."
+        },
+        "inode_quota": {
+          "type": "integer",
+          "minimum": 10,
+          "maximum": 10000000,
+          "default": 10000,
+          "description": "Maximum number of inodes (files/directories) for the agent's OverlayFS upper layer. Enforced via XFS project quotas."
+        }
+      }
+    },
+    "network": {
+      "type": "object",
+      "required": [
+        "mode",
+        "allowed_domains"
+      ],
+      "additionalProperties": false,
+      "description": "Network access policy enforced via network namespaces and nftables.",
+      "properties": {
+        "mode": {
+          "type": "string",
+          "enum": [
+            "Blocked",
+            "Gated",
+            "Monitored",
+            "Unrestricted"
+          ],
+          "default": "Blocked",
+          "description": "Network access mode. Blocked: no network access. Gated: only allowed_domains permitted via HTTP proxy. Monitored: all traffic allowed but logged. Unrestricted: no restrictions."
+        },
+        "allowed_domains": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "List of domain names (or wildcard patterns like *.example.com) permitted when mode is Gated. Ignored for other modes."
+        }
+      },
+      "if": {
+        "properties": {
+          "mode": {
+            "const": "Gated"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "allowed_domains": {
+            "minItems": 1
+          }
+        }
+      }
+    },
+    "behavioral": {
+      "type": "object",
+      "required": [
+        "max_deletions",
+        "max_reads_per_minute",
+        "credential_access_alert"
+      ],
+      "additionalProperties": false,
+      "description": "Behavioral monitoring thresholds enforced via fanotify. Triggers alert or kill when thresholds are exceeded.",
+      "properties": {
+        "max_deletions": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100000,
+          "default": 50,
+          "description": "Maximum number of file deletions before triggering a behavioral alert. Prevents mass-deletion attacks."
+        },
+        "max_reads_per_minute": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1000000,
+          "default": 1000,
+          "description": "Maximum file read operations per minute before triggering a behavioral alert. Prevents data exfiltration via rapid enumeration."
+        },
+        "credential_access_alert": {
+          "type": "boolean",
+          "default": true,
+          "description": "Whether to raise an alert when the agent attempts to access credential files (SSH keys, tokens, .env files)."
+        }
+      }
+    },
+    "fail_mode": {
+      "type": "string",
+      "enum": [
+        "FailClosed",
+        "FailSilent",
+        "FailOperational",
+        "FailSafeState"
+      ],
+      "default": "FailClosed",
+      "description": "Behavior when governance evaluation fails or puzzled encounters an error. FailClosed: rollback pending changes (default). FailSilent: hold last known safe state. FailOperational: continue with reduced capability. FailSafeState: enter controlled safe state (for safety-critical deployments)."
+    }
+  }
+}

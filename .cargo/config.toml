@@ -1,0 +1,14 @@
+# Cargo configuration for PuzzlePod
+#
+# When cross-compiling from macOS to aarch64-linux (e.g., for Lima VM),
+# set the linker explicitly:
+#
+#   CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc \
+#     cargo build --target aarch64-unknown-linux-gnu --release
+#
+# When building natively inside the Lima VM, no linker override is needed —
+# just run: cargo build --workspace --release
+
+# Treat all warnings as errors (matches CI: clippy -- -D warnings)
+[target.'cfg(all())']
+rustflags = ["-Dwarnings"]

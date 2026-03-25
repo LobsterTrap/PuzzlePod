@@ -1,0 +1,91 @@
+[package]
+name = "puzzled"
+version = "0.1.0"
+edition = "2021"
+description = "PuzzlePod governance daemon"
+license = "Apache-2.0"
+default-run = "puzzled"
+
+[features]
+default = ["metrics", "ima", "proxy"]
+## Prometheus metrics endpoint (pulls in prometheus-client)
+metrics = ["dep:prometheus-client"]
+## IMA changeset signing + agent identity (pulls in ed25519-dalek, base64)
+ima = ["dep:ed25519-dalek", "dep:base64"]
+## HTTP proxy for network side-effect gating (pulls in puzzle-proxy)
+proxy = ["dep:puzzle-proxy"]
+## BPF LSM exec rate limiting (requires compiled exec_guard.bpf.o and
+## CONFIG_BPF_LSM kernel support; pulls in aya-obj)
+bpf_lsm = ["dep:aya-obj"]
+
+[lib]
+name = "puzzled"
+path = "src/lib.rs"
+
+[[bin]]
+name = "puzzled"
+path = "src/main.rs"
+
+[dependencies]
+puzzled-types = { path = "../puzzled-types" }
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+serde_yaml = "0.9"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+zbus = { workspace = true }
+uuid = { version = "1", features = ["v4", "v7"] }
+chrono = { version = "0.4", features = ["serde"] }
+sha2 = "0.10"
+hkdf = "0.12"
+hmac = "0.12"
+walkdir = "2"
+regorus = "0.2"
+ed25519-dalek = { version = "2", features = ["std"], optional = true }
+base64 = { version = "0.22", optional = true }
+getrandom = "0.2"
+
+dashmap = "6"
+crc32fast = "1"
+tempfile = "3"
+libc = "0.2"
+zeroize = { version = "1", features = ["derive"] }
+sd-notify = "0.4"
+puzzle-proxy = { path = "../puzzle-proxy", optional = true }
+prometheus-client = { version = "0.22", optional = true }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+nix = { version = "0.29", features = ["mount", "sched", "signal", "user", "fs", "resource"] }
+landlock = "0.4"
+libseccomp = "0.3"
+aya-obj = { version = "0.2", optional = true }
+
+[dev-dependencies]
+tempfile = "3"
+serde_json = { workspace = true }
+serde_yaml = "0.9"
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+getrandom = "0.2"
+criterion = { version = "0.5", features = ["html_reports"] }
+
+[[bench]]
+name = "branch"
+harness = false
+
+[[bench]]
+name = "policy"
+harness = false
+
+[[bench]]
+name = "diff"
+harness = false
+
+[[bench]]
+name = "wal"
+harness = false
+
+[lints]
+workspace = true

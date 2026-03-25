@@ -1,0 +1,12 @@
+{
+    "version": "1.0.0",
+    "hook": {
+        "path": "/usr/libexec/puzzle-hook"
+    },
+    "when": {
+        "annotations": {
+            "run.oci.handler": "puzzlepod"
+        }
+    },
+    "stages": ["createRuntime", "poststop"]
+}

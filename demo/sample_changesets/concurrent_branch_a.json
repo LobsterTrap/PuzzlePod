@@ -1,0 +1,4 @@
+[
+  {"path": "src/config.py", "kind": "Modified", "size": 2048, "checksum": "aaaa1111aaaa1111aaaa1111aaaa1111aaaa1111aaaa1111aaaa1111aaaa1111"},
+  {"path": "src/api.py", "kind": "Added", "size": 1536, "checksum": "bbbb2222bbbb2222bbbb2222bbbb2222bbbb2222bbbb2222bbbb2222bbbb2222"}
+]

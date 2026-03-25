@@ -1,0 +1,98 @@
+name: git-operations
+description: >
+  Profile for Git repository management agents. Gated network access to
+  GitHub and GitLab for push/pull/PR operations. Supports git CLI along
+  with GitHub CLI (gh) and GitLab CLI (glab).
+
+filesystem:
+  read_allowlist:
+    - /usr/share
+    - /usr/lib
+    - /usr/lib64
+    - /etc/alternatives
+    - /etc/ssl/certs
+    - /etc/pki/tls
+  write_allowlist: []
+  denylist:
+    - /etc/shadow
+    - /etc/gshadow
+    - /etc/ssh
+    - /root/.ssh
+    - /etc/sudoers
+    - /etc/sudoers.d
+  # N15: Defense-in-depth read/write denylists
+  read_denylist:
+    - /etc/shadow
+    - /etc/gshadow
+    - /etc/sudoers
+    - /etc/sudoers.d
+  write_denylist:
+    - /etc
+    - /usr
+    - /boot
+    - /sbin
+    - /bin
+    - /lib
+    - /lib64
+    - /var/log
+    - /root
+
+exec_allowlist:
+  - /usr/bin/git
+  - /usr/bin/gh
+  - /usr/bin/glab
+  - /usr/bin/cat
+  - /usr/bin/ls
+  - /usr/bin/head
+  - /usr/bin/tail
+  - /usr/bin/grep
+  - /usr/bin/diff
+  - /usr/bin/wc
+
+# T24: Expanded exec_denylist — privilege escalation + exfiltration vectors
+exec_denylist:
+  - nsenter
+  - unshare
+  - chroot
+  - mount
+  - strace
+  - gdb
+  - su
+  - sudo
+  - pkexec
+  - dd
+  - nc
+  - ncat
+  - socat
+  - capsh
+  - setcap
+  - modprobe
+  - insmod
+  - kexec
+  - bpftool
+
+resource_limits:
+  memory_bytes: 268435456      # 256 MiB
+  cpu_shares: 80
+  io_weight: 80
+  max_pids: 32
+  storage_quota_mb: 1024
+  inode_quota: 10000
+
+network:
+  mode: Gated
+  allowed_domains:
+    - github.com
+    - api.github.com
+    - gitlab.com
+    - registry.gitlab.com
+
+behavioral:
+  max_deletions: 50
+  max_reads_per_minute: 1000
+  credential_access_alert: true
+
+seccomp_mode: Permissive
+allow_symlinks: false
+
+fail_mode: FailClosed

@@ -1,0 +1,121 @@
+name: standard
+description: >
+  Standard profile for trusted development agents.
+  Project-scoped filesystem access, gated network, standard quotas.
+
+filesystem:
+  read_allowlist:
+    - /usr/bin
+    - /usr/share
+    - /usr/lib
+    - /usr/lib64
+    - /usr/include
+    - /etc/alternatives
+    - /etc/localtime
+    - /etc/resolv.conf
+    - /etc/ld.so.cache
+    - /proc/self
+    - /dev/null
+    - /dev/urandom
+  write_allowlist: []
+  denylist:
+    - /etc/shadow
+    - /etc/gshadow
+    - /etc/ssh
+    - /root/.ssh
+  # N15: Defense-in-depth read/write denylists
+  read_denylist:
+    - /etc/shadow
+    - /etc/gshadow
+    - /etc/sudoers
+    - /etc/sudoers.d
+  write_denylist:
+    - /etc
+    - /usr
+    - /boot
+    - /sbin
+    - /bin
+    - /lib
+    - /lib64
+    - /var/log
+    - /root
+
+exec_allowlist:
+  - /usr/bin/python3
+  - /usr/bin/python3.12
+  - /usr/bin/node
+  - /usr/bin/gcc
+  - /usr/bin/g++
+  - /usr/bin/make
+  - /usr/bin/cmake
+  - /usr/bin/cargo
+  - /usr/bin/rustc
+  - /usr/bin/git
+  - /usr/bin/cat
+  - /usr/bin/ls
+  - /usr/bin/head
+  - /usr/bin/tail
+  - /usr/bin/grep
+  - /usr/bin/find
+  - /usr/bin/wc
+  - /usr/bin/sort
+  - /usr/bin/sed
+  - /usr/bin/awk
+  - /usr/bin/curl
+
+# T24: Expanded exec_denylist — privilege escalation + exfiltration vectors
+exec_denylist:
+  - nsenter
+  - unshare
+  - chroot
+  - mount
+  - strace
+  - gdb
+  - su
+  - sudo
+  - pkexec
+  - dd
+  - nc
+  - ncat
+  - socat
+  - capsh
+  - setcap
+  - modprobe
+  - insmod
+  - kexec
+  - bpftool
+  # §3.4 G31: Netfilter binaries
+  - nft
+  - iptables
+  - ip6tables
+  - ebtables
+  - xtables-legacy-multi
+  - xtables-nft-multi
+
+resource_limits:
+  memory_bytes: 536870912      # 512 MiB
+  cpu_shares: 100
+  io_weight: 100
+  max_pids: 64
+  storage_quota_mb: 1024
+  inode_quota: 10000
+
+network:
+  mode: Gated
+  allowed_domains:
+    - pypi.org
+    - files.pythonhosted.org
+    - registry.npmjs.org
+    - crates.io
+    - static.crates.io
+    - github.com
+    - api.github.com
+
+behavioral:
+  max_deletions: 50
+  max_reads_per_minute: 1000
+  credential_access_alert: true
+
+fail_mode: FailClosed
+seccomp_mode: Permissive
+allow_symlinks: false

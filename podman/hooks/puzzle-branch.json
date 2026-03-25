@@ -1,0 +1,17 @@
+{
+    "_note": "DEPRECATED: This hook is superseded by puzzlepod.json (Rust binary hook)",
+    "version": "1.0.0",
+    "hook": {
+        "path": "/usr/libexec/puzzlepod/puzzle-branch-hook.sh",
+        "args": ["puzzle-branch-hook.sh"],
+        "env": [
+            "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin"
+        ]
+    },
+    "when": {
+        "annotations": {
+            "org.lobstertrap.puzzlepod.branch": ".*"
+        }
+    },
+    "stages": ["createRuntime"]
+}

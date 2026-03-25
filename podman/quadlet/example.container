@@ -1,0 +1,64 @@
+# example.container — Quadlet unit file for an puzzle-branched container.
+#
+# Install to: ~/.config/containers/systemd/ (rootless)
+#             /etc/containers/systemd/       (rootful)
+#
+# This runs a container with PuzzlePod branch isolation.
+# Changes made inside /workspace are captured in the branch overlay
+# and subject to governance policy review before committing.
+#
+# Start:   systemctl --user start example.service
+# Status:  puzzlectl branch list
+# Approve: puzzlectl branch approve <branch-id>
+
+[Unit]
+Description=Example agent workload with PuzzlePod branching
+After=puzzled.service
+Requires=puzzled.service
+
+[Container]
+Image=registry.fedoraproject.org/fedora-minimal:latest
+Exec=/bin/sh -c "echo 'Agent running in branch'; sleep infinity"
+
+# ---- PuzzlePod Quadlet Directives ----
+#
+# AgentBranch=true        — Enable branch isolation via D-Bus
+# AgentProfile=<name>     — Agent profile for sandbox constraints
+# AgentNetworkMode=<mode> — Network mode: Blocked, Gated, Monitored, Unrestricted
+# AgentBasePath=<path>    — Base filesystem path for the branch
+# AgentAutoCommit=<bool>  — Automatically commit on clean container exit
+#
+# These directives are translated to OCI annotations and env vars
+# by the Quadlet generator. The OCI hook (puzzle-branch-hook.sh)
+# reads the annotations and creates the branch via puzzled D-Bus API.
+
+# OCI hook trigger annotation — activates puzzle-hook
+Annotation=run.oci.handler=puzzlepod
+# Branch identity annotation
+Annotation=org.lobstertrap.puzzlepod.branch=example
+# Agent profile name (must exist in /etc/puzzled/profiles/)
+Annotation=org.lobstertrap.puzzlepod.profile=standard
+# Base filesystem path for the branch overlay
+Annotation=org.lobstertrap.puzzlepod.base_path=/var/agent-workspace
+# Network gating mode (Phase 2)
+Annotation=org.lobstertrap.puzzlepod.network_mode=gated
+# Auto-commit on clean exit (optional, default: false)
+Annotation=org.lobstertrap.puzzlepod.auto_commit=false
+
+# Mount the branch workspace
+Volume=/var/agent-workspace:/workspace:Z
+
+# Resource limits (also enforced by puzzled cgroup)
+Memory=512M
+PidsLimit=64
+
+# Environment
+Environment=PUZZLEPOD_WORKSPACE=/workspace
+
+[Service]
+Restart=on-failure
+RestartSec=5s
+TimeoutStartSec=30s
+
+[Install]
+WantedBy=default.target
