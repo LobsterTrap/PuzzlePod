@@ -55,6 +55,12 @@ packages:
   # Rootless demo dependencies
   - fuse-overlayfs
   - fuse3
+  # Rust toolchain
+  - rust
+  - cargo
+  - cargo-deny
+  - clippy
+  - rustfmt
 
 runcmd:
   # -------------------------------------------------------
@@ -69,14 +75,7 @@ runcmd:
     fi
 
   # -------------------------------------------------------
-  # 2. Install Rust toolchain for the puzzlepod user
-  # -------------------------------------------------------
-  - |
-    su - puzzlepod -c 'curl --proto "=https" --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable --profile default'
-    su - puzzlepod -c 'source "$HOME/.cargo/env" && rustup component add clippy rustfmt'
-
-  # -------------------------------------------------------
-  # 3. Verify kernel primitives
+  # 2. Verify kernel primitives
   # -------------------------------------------------------
   - |
     echo ""

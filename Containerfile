@@ -23,7 +23,6 @@
 # Stage 1: Builder
 # ---------------------------------------------------------------------------
 # T33/T38: TODO — pin base images by digest (@sha256:...) for supply chain integrity.
-# T33: TODO — replace curl|sh rustup with dnf-packaged rust/cargo for RPM signature verification.
 FROM registry.fedoraproject.org/fedora:42 AS builder
 
 RUN dnf install -y \
@@ -38,14 +37,11 @@ RUN dnf install -y \
         libseccomp-devel \
         dbus-devel \
         openssl-devel \
+        rust \
+        cargo \
+        clippy \
+        rustfmt \
     && dnf clean all
-
-# Install Rust toolchain (with fmt + clippy for local CI parity)
-RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | \
-    sh -s -- -y --default-toolchain stable --profile default \
-    && . "$HOME/.cargo/env" \
-    && rustup component add rustfmt clippy
-ENV PATH="/root/.cargo/bin:${PATH}"
 
 WORKDIR /build
 COPY . .

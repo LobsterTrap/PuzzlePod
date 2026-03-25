@@ -52,7 +52,7 @@ cd ~/puzzlepod    # or wherever your project is mounted
 
 ```bash
 # Create the sudocargo alias (preserves Rust toolchain paths)
-alias sudocargo='sudo -E env PATH="$PATH" CARGO_HOME="$HOME/.cargo" RUSTUP_HOME="$HOME/.rustup" cargo'
+alias sudocargo='sudo -E env PATH="$PATH" cargo'
 
 # Build all crates in release mode
 sudocargo build --workspace --release

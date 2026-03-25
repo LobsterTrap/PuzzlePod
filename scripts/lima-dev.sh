@@ -89,9 +89,6 @@ cmd_setup() {
             ;;
     esac
 
-    # Ensure the lima user has a usable default toolchain
-    limactl shell "$VM_NAME" -- bash -lc 'rustup default stable 2>/dev/null || true'
-
     echo ""
     echo "VM '$VM_NAME' is ready."
     echo "  Enter VM:  ./scripts/lima-dev.sh shell"

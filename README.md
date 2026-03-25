@@ -100,10 +100,8 @@ This demonstrates the full Fork-Explore-Commit lifecycle using fuse-overlayfs an
 sudo dnf install -y gcc gcc-c++ make cmake pkg-config \
   openssl-devel dbus-devel systemd-devel \
   clang llvm libseccomp-devel bpftool libbpf-devel \
-  xfsprogs xfsprogs-devel nftables audit ima-evm-utils jq
-
-# Install Rust
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+  xfsprogs xfsprogs-devel nftables audit ima-evm-utils jq \
+  rust cargo cargo-deny clippy rustfmt
 
 # Build
 make build

@@ -74,20 +74,7 @@ provision:
       ima-evm-utils \
       util-linux  # for unshare, nsenter
       fuse-overlayfs fuse3  # for rootless demo
-
-    # Install Rust via rustup (system-wide)
-    if ! command -v rustup &>/dev/null; then
-      curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | \
-        sh -s -- -y --default-toolchain stable --profile default
-      # Make rust available system-wide
-      ln -sf /root/.cargo/bin/* /usr/local/bin/
-    fi
-
-    # Install Rust components
-    /root/.cargo/bin/rustup component add clippy rustfmt
-
-    # Install cargo tools for development
-    /root/.cargo/bin/cargo install cargo-watch 2>/dev/null || true
+      rust cargo cargo-deny clippy rustfmt
 
     # -------------------------------------------------------
     # 1b. Mount securityfs (needed for Landlock ABI check, test scripts)
@@ -289,17 +276,6 @@ provision:
     echo "  To test:  cargo test --workspace"
     echo ""
 
-# Make rust available to the lima user too
-- mode: user
-  script: |
-    #!/bin/bash
-    set -eux -o pipefail
-    if [ ! -d "$HOME/.cargo" ]; then
-      curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | \
-        sh -s -- -y --default-toolchain stable --profile default
-      source "$HOME/.cargo/env"
-      rustup component add clippy rustfmt
-    fi
 
 # --- Probes ---
 # Wait for provisioning to complete
@@ -308,7 +284,7 @@ probes:
   script: |
     #!/bin/bash
     set -eux -o pipefail
-    test -f /usr/local/bin/cargo || test -f /root/.cargo/bin/cargo
+    test -f /usr/bin/cargo
   hint: |
     Rust toolchain is still installing. Wait a moment and try again.
 

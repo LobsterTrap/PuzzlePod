@@ -29,24 +29,18 @@ RUN dnf install -y --setopt=install_weak_deps=False \
     && rm -rf /var/cache/dnf
 
 # Rust toolchain (stable + fmt + clippy)
-ENV RUSTUP_HOME=/usr/local/rustup \
-    CARGO_HOME=/usr/local/cargo \
-    PATH=/usr/local/cargo/bin:$PATH
-
-RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
-        | sh -s -- -y --default-toolchain stable --profile default \
-    && rustup component add rustfmt clippy \
+RUN dnf install -y --setopt=install_weak_deps=False \
+        rust cargo clippy rustfmt cargo-deny \
+    && dnf clean all \
     && rustc --version && cargo --version
 
-# CI tools — use pre-built binaries (cargo install cargo-tarpaulin takes
+# CI tools — use pre-built binary (cargo install cargo-tarpaulin takes
 # 45+ min on slow runners and was the reason the image build timed out).
-ARG DENY_VERSION=0.19.0
+# cargo-deny is installed via dnf above.
 ARG TARPAULIN_VERSION=0.32.7
 
-RUN curl -sSL "https://github.com/EmbarkStudios/cargo-deny/releases/download/${DENY_VERSION}/cargo-deny-${DENY_VERSION}-x86_64-unknown-linux-musl.tar.gz" \
-        | tar xz -C /usr/local/bin --strip-components=1 \
-    && curl -sSL "https://github.com/xd009642/tarpaulin/releases/download/${TARPAULIN_VERSION}/cargo-tarpaulin-x86_64-unknown-linux-musl.tar.gz" \
-        | tar xz -C /usr/local/cargo/bin
+RUN curl -sSL "https://github.com/xd009642/tarpaulin/releases/download/${TARPAULIN_VERSION}/cargo-tarpaulin-x86_64-unknown-linux-musl.tar.gz" \
+        | tar xz -C /usr/local/bin
 
 # Pre-cache workspace dependency index so first cargo build in CI only
 # downloads crate tarballs (fast) rather than cloning the full index (slow).
