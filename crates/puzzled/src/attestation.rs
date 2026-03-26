@@ -271,8 +271,9 @@ impl MerkleTree {
         let root_hash_path = self.data_dir.join("root_hash");
         let root_hex = hex_encode(&root);
         {
-            let mut rh_file = std::fs::File::create(&root_hash_path)
-                .map_err(|e| PuzzledError::Attestation(format!("creating root_hash file: {}", e)))?;
+            let mut rh_file = std::fs::File::create(&root_hash_path).map_err(|e| {
+                PuzzledError::Attestation(format!("creating root_hash file: {}", e))
+            })?;
             rh_file
                 .write_all(root_hex.as_bytes())
                 .map_err(|e| PuzzledError::Attestation(format!("writing root_hash file: {}", e)))?;

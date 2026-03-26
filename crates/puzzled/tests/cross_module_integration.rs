@@ -81,8 +81,8 @@ fn make_provenance_record(branch_id: &str, record_type: ProvenanceType) -> Prove
 #[cfg(feature = "ima")]
 mod trust_identity {
     use super::*;
-    use puzzled::identity::IdentityManager;
     use ed25519_dalek::SigningKey;
+    use puzzled::identity::IdentityManager;
 
     fn test_signing_key() -> SigningKey {
         let mut bytes = [0u8; 32];
@@ -680,8 +680,8 @@ fn provenance_cleanup_on_rollback() {
 #[cfg(feature = "ima")]
 #[test]
 fn full_commit_path_trust_provenance_identity() {
-    use puzzled::identity::IdentityManager;
     use ed25519_dalek::SigningKey;
+    use puzzled::identity::IdentityManager;
 
     let dir = TempDir::new().unwrap();
     let trust_dir = dir.path().join("trust");

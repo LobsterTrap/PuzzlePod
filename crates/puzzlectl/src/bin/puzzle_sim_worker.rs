@@ -15,8 +15,8 @@
 
 #[cfg(feature = "sim")]
 fn main() -> anyhow::Result<()> {
-    use puzzlectl::sim::scenario::Scenario;
     use anyhow::Context;
+    use puzzlectl::sim::scenario::Scenario;
     use std::path::PathBuf;
 
     let args: Vec<String> = std::env::args().collect();

@@ -430,8 +430,9 @@ mod tests {
 
     #[test]
     fn test_result_type_err_variant() {
-        let err_result: Result<i32> =
-            Err(crate::error::PuzzledError::Sandbox("test error".to_string()));
+        let err_result: Result<i32> = Err(crate::error::PuzzledError::Sandbox(
+            "test error".to_string(),
+        ));
         match err_result {
             Ok(_) => panic!("expected Err, got Ok"),
             Err(e) => assert!(e.to_string().contains("test error")),

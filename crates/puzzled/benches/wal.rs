@@ -6,8 +6,8 @@
 
 use std::path::PathBuf;
 
-use puzzled_types::BranchId;
 use criterion::{criterion_group, criterion_main, Criterion};
+use puzzled_types::BranchId;
 
 fn bench_wal_append_1_operation(c: &mut Criterion) {
     c.bench_function("wal_append_1_operation", |b| {

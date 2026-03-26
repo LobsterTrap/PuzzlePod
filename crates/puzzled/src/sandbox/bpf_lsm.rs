@@ -571,8 +571,9 @@ fn bpf_create_map(map_type: u32, key_size: u32, value_size: u32, max_entries: u3
     }
 
     // K2: Use try_from instead of bare `fd as i32` to detect truncation
-    i32::try_from(fd)
-        .map_err(|_| PuzzledError::BpfLsm(format!("bpf(BPF_MAP_CREATE) fd {} out of i32 range", fd)))
+    i32::try_from(fd).map_err(|_| {
+        PuzzledError::BpfLsm(format!("bpf(BPF_MAP_CREATE) fd {} out of i32 range", fd))
+    })
 }
 
 #[cfg(target_os = "linux")]
@@ -670,8 +671,8 @@ fn bpf_prog_load(
 ) -> Result<i32> {
     let license_cstr =
         std::ffi::CString::new(license).map_err(|e| PuzzledError::BpfLsm(e.to_string()))?;
-    let func_name_cstr =
-        std::ffi::CString::new(attach_func_name).map_err(|e| PuzzledError::BpfLsm(e.to_string()))?;
+    let func_name_cstr = std::ffi::CString::new(attach_func_name)
+        .map_err(|e| PuzzledError::BpfLsm(e.to_string()))?;
 
     // BPF_PROG_LOAD attr — using a zeroed buffer with manual field placement
     // to avoid depending on exact kernel struct layout versioning

@@ -10,8 +10,8 @@
 
 use std::path::{Path, PathBuf};
 
-use puzzled_types::{BranchId, FileChange, FileChangeKind};
 use ed25519_dalek::{Signer, SigningKey, Verifier, VerifyingKey};
+use puzzled_types::{BranchId, FileChange, FileChangeKind};
 use serde::{Deserialize, Serialize};
 
 use crate::error::{PuzzledError, Result};
@@ -89,7 +89,9 @@ impl ImaIntegration {
             let key_bytes = std::fs::read(key_path)
                 .map_err(|e| PuzzledError::Ima(format!("reading signing key: {}", e)))?;
             if key_bytes.len() != 32 {
-                return Err(PuzzledError::Ima("signing key must be 32 bytes".to_string()));
+                return Err(PuzzledError::Ima(
+                    "signing key must be 32 bytes".to_string(),
+                ));
             }
             let mut arr = [0u8; 32];
             arr.copy_from_slice(&key_bytes);

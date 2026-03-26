@@ -4770,7 +4770,10 @@ fn adversarial_empty_commit() {
         "empty commit should have 0 files"
     );
     assert!(
-        matches!(result.policy_result, puzzled_types::PolicyDecision::Approved),
+        matches!(
+            result.policy_result,
+            puzzled_types::PolicyDecision::Approved
+        ),
         "empty commit should be approved (no violations possible)"
     );
 

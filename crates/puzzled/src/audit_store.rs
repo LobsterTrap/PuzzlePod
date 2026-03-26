@@ -449,7 +449,8 @@ impl AuditStore {
         let mut count = 0u64;
 
         for line in reader.lines() {
-            let line = line.map_err(|e| PuzzledError::AuditStore(format!("reading line: {}", e)))?;
+            let line =
+                line.map_err(|e| PuzzledError::AuditStore(format!("reading line: {}", e)))?;
             if line.trim().is_empty() {
                 continue;
             }

@@ -20,8 +20,8 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
-use puzzled_types::AgentProfile;
 use anyhow::{Context, Result};
+use puzzled_types::AgentProfile;
 use serde::{Deserialize, Serialize};
 
 /// M5: Default attestation directory — should match DaemonConfig::attestation::attestation_dir.

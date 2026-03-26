@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
-use puzzled_types::{BranchId, BranchInfo, BranchState, CommitResult, FileChange, PolicyDecision};
 use dashmap::DashMap;
 #[cfg(target_os = "linux")]
 use nix::mount::MntFlags;
+use puzzled_types::{BranchId, BranchInfo, BranchState, CommitResult, FileChange, PolicyDecision};
 use std::collections::HashSet;
 #[cfg(target_os = "linux")]
 use std::path::Path;
@@ -212,7 +212,8 @@ impl BranchManager {
         // Delete persisted credential mapping file from branch state directory
         let branch_dir = self.config.branch_root.join(id.as_str());
         if branch_dir.exists() {
-            let _ = puzzle_proxy::credential_persistence::CredentialMappingFile::delete(&branch_dir);
+            let _ =
+                puzzle_proxy::credential_persistence::CredentialMappingFile::delete(&branch_dir);
             tracing::debug!(branch = %id, "§3.4 T2.3: credential mappings file deleted");
         }
     }
@@ -310,10 +311,9 @@ impl BranchManager {
             unsafe { libc::close(fd_i32) };
         }
 
-        let mut branch = self
-            .branches
-            .get_mut(id)
-            .ok_or_else(|| crate::error::PuzzledError::Branch(format!("branch {} not found", id)))?;
+        let mut branch = self.branches.get_mut(id).ok_or_else(|| {
+            crate::error::PuzzledError::Branch(format!("branch {} not found", id))
+        })?;
 
         branch.pid = Some(container_pid);
         tracing::info!(
@@ -601,7 +601,8 @@ impl BranchManager {
                     quarantine_sender: {
                         // §3.3: Create quarantine channel — receiver freezes
                         // the branch cgroup when DLP detects a Quarantine-level violation.
-                        let (tx, mut rx) = tokio::sync::mpsc::channel::<puzzled_types::BranchId>(16);
+                        let (tx, mut rx) =
+                            tokio::sync::mpsc::channel::<puzzled_types::BranchId>(16);
                         let cgroup_path = self.sandboxes.get(id).map(|h| h.cgroup_path.clone());
                         if let Ok(rt_handle) = tokio::runtime::Handle::try_current() {
                             rt_handle.spawn(async move {

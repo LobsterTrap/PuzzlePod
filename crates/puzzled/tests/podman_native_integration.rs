@@ -251,8 +251,8 @@ fn landlock_rules_excludes_denylisted_paths() {
         .read_allowlist
         .push(std::path::PathBuf::from("/etc/shadow"));
 
-    let rules =
-        puzzled::landlock_rules::generate_landlock_rules(&profile, Path::new("/workspace")).unwrap();
+    let rules = puzzled::landlock_rules::generate_landlock_rules(&profile, Path::new("/workspace"))
+        .unwrap();
 
     assert!(
         !rules.read.contains(&"/etc/shadow".to_string()),
@@ -264,8 +264,8 @@ fn landlock_rules_excludes_denylisted_paths() {
 #[test]
 fn landlock_rules_includes_standard_system_paths() {
     let profile = create_restricted_profile();
-    let rules =
-        puzzled::landlock_rules::generate_landlock_rules(&profile, Path::new("/workspace")).unwrap();
+    let rules = puzzled::landlock_rules::generate_landlock_rules(&profile, Path::new("/workspace"))
+        .unwrap();
 
     for expected in &[
         "/usr",
@@ -300,8 +300,8 @@ fn landlock_rules_workspace_always_writable() {
 #[test]
 fn landlock_rules_restricted_profile_minimal() {
     let profile = create_restricted_profile();
-    let rules =
-        puzzled::landlock_rules::generate_landlock_rules(&profile, Path::new("/workspace")).unwrap();
+    let rules = puzzled::landlock_rules::generate_landlock_rules(&profile, Path::new("/workspace"))
+        .unwrap();
 
     assert_eq!(rules.write.len(), 1, "only workspace in write rules");
     assert_eq!(rules.write[0], "/workspace");
@@ -439,8 +439,8 @@ fn landlock_rules_write_read_roundtrip() {
     let output_path = dir.path().join("landlock.json");
 
     let profile = create_test_profile("standard");
-    let rules =
-        puzzled::landlock_rules::generate_landlock_rules(&profile, Path::new("/workspace")).unwrap();
+    let rules = puzzled::landlock_rules::generate_landlock_rules(&profile, Path::new("/workspace"))
+        .unwrap();
 
     puzzled::landlock_rules::write_landlock_rules(&rules, &output_path).unwrap();
 
@@ -632,8 +632,8 @@ fn landlock_rules_exec_matches_profile() {
         "/usr/bin/cargo".to_string(),
     ];
 
-    let rules =
-        puzzled::landlock_rules::generate_landlock_rules(&profile, Path::new("/workspace")).unwrap();
+    let rules = puzzled::landlock_rules::generate_landlock_rules(&profile, Path::new("/workspace"))
+        .unwrap();
 
     assert_eq!(rules.exec.len(), 3);
     assert!(rules.exec.contains(&"/usr/bin/python3".to_string()));
@@ -646,16 +646,16 @@ fn landlock_rules_exec_matches_profile() {
 fn landlock_rules_allow_refer_from_profile() {
     let mut profile = create_test_profile("standard");
     profile.allow_symlinks = true;
-    let rules =
-        puzzled::landlock_rules::generate_landlock_rules(&profile, Path::new("/workspace")).unwrap();
+    let rules = puzzled::landlock_rules::generate_landlock_rules(&profile, Path::new("/workspace"))
+        .unwrap();
     assert!(
         rules.allow_refer,
         "allow_refer must be true when allow_symlinks=true"
     );
 
     profile.allow_symlinks = false;
-    let rules =
-        puzzled::landlock_rules::generate_landlock_rules(&profile, Path::new("/workspace")).unwrap();
+    let rules = puzzled::landlock_rules::generate_landlock_rules(&profile, Path::new("/workspace"))
+        .unwrap();
     assert!(
         !rules.allow_refer,
         "allow_refer must be false when allow_symlinks=false"
@@ -773,8 +773,8 @@ fn j81_landlock_rules_excludes_read_denylist() {
     // General denylist is empty — only read_denylist should apply
     profile.filesystem.denylist = vec![];
 
-    let rules =
-        puzzled::landlock_rules::generate_landlock_rules(&profile, Path::new("/workspace")).unwrap();
+    let rules = puzzled::landlock_rules::generate_landlock_rules(&profile, Path::new("/workspace"))
+        .unwrap();
 
     assert!(
         rules.read.contains(&"/usr".to_string()),
@@ -798,8 +798,8 @@ fn j81_landlock_rules_excludes_write_denylist() {
     profile.filesystem.write_denylist = vec![PathBuf::from("/boot")];
     profile.filesystem.denylist = vec![];
 
-    let rules =
-        puzzled::landlock_rules::generate_landlock_rules(&profile, Path::new("/workspace")).unwrap();
+    let rules = puzzled::landlock_rules::generate_landlock_rules(&profile, Path::new("/workspace"))
+        .unwrap();
 
     assert!(
         rules.write.contains(&"/tmp".to_string()),
