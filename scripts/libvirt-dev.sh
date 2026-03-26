@@ -7,11 +7,11 @@
 # rsyncs the project source into the VM, and runs demos inside it.
 #
 # Runs entirely as your user (qemu:///session) -- no sudo required for VM
-# management. The demos themselves run as root inside the VM via the 'puzzlepod'
+# management. The demos themselves run as root inside the VM via the 'fedora'
 # user's passwordless sudo.
 #
 # Prerequisites:
-#   sudo dnf install libvirt virt-install qemu-kvm genisoimage passt
+#   sudo dnf install libvirt virt-install qemu-kvm rsync
 #   sudo systemctl enable --now libvirtd
 #
 # Usage:
@@ -21,7 +21,7 @@
 #   ./scripts/libvirt-dev.sh build      # cargo build --workspace --release inside VM
 #   ./scripts/libvirt-dev.sh test       # cargo test --workspace inside VM
 #   ./scripts/libvirt-dev.sh security   # sudo tests/security/run_all.sh inside VM
-#   ./scripts/libvirt-dev.sh demo <name> # Run a demo inside VM (phase1|phase2|sandbox|e2e|rootless)
+#   ./scripts/libvirt-dev.sh demo <name> # Run a demo inside VM (phase1|phase2|sandbox|e2e|rootless|tui)
 #   ./scripts/libvirt-dev.sh stop       # Shutdown VM
 #   ./scripts/libvirt-dev.sh start      # Start a stopped VM
 #   ./scripts/libvirt-dev.sh destroy    # Delete VM and all storage
@@ -34,7 +34,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 VM_NAME="puzzled-dev"
-VM_USER="puzzlepod"
+VM_USER="fedora"
 VM_MEMORY=8192   # MiB
 VM_VCPUS=4
 VM_DISK_SIZE=50  # GiB
@@ -42,7 +42,6 @@ VM_DISK_SIZE=50  # GiB
 # All storage under user's home -- no root needed
 VM_DIR="${HOME}/.local/share/puzzled-dev-vm"
 DISK_PATH="${VM_DIR}/${VM_NAME}.qcow2"
-SEED_ISO="${VM_DIR}/seed.iso"
 SSH_KEY="${VM_DIR}/id_ed25519"
 CLOUD_INIT_USERDATA="${PROJECT_DIR}/puzzled-dev-libvirt.yaml"
 
@@ -80,12 +79,12 @@ fi
 
 check_prerequisites() {
     local missing=()
-    for cmd in virsh virt-install qemu-img genisoimage rsync passt; do
+    for cmd in virsh virt-install qemu-img rsync; do
         command -v "$cmd" &>/dev/null || missing+=("$cmd")
     done
     if [ ${#missing[@]} -gt 0 ]; then
         die "Missing required commands: ${missing[*]}
-Install with: sudo dnf install libvirt virt-install qemu-kvm genisoimage passt rsync
+Install with: sudo dnf install libvirt virt-install qemu-kvm rsync
 Then: sudo systemctl enable --now libvirtd"
     fi
 
@@ -227,27 +226,13 @@ cmd_setup() {
     info "Creating VM disk (${VM_DISK_SIZE}G)..."
     qemu-img create -f qcow2 -b "$FEDORA_QCOW2" -F qcow2 "$DISK_PATH" "${VM_DISK_SIZE}G"
 
-    # --- Generate cloud-init ISO ---
-    info "Generating cloud-init seed ISO..."
+    # --- Prepare cloud-init user-data ---
+    # Inject SSH key into the cloud-init template
     local tmpdir
     tmpdir=$(mktemp -d)
-    # shellcheck disable=SC2064  # Intentional: expand $tmpdir now (local var, out of scope at EXIT)
+    # shellcheck disable=SC2064  # Intentional: expand $tmpdir now
     trap "rm -rf -- \"$tmpdir\"" EXIT
-
-    # meta-data
-    cat > "${tmpdir}/meta-data" << EOF
-instance-id: ${VM_NAME}
-local-hostname: ${VM_NAME}
-EOF
-
-    # user-data: inject SSH key into the template
-    # Use awk for literal substitution (avoids sed special chars like & and \)
     awk -v key="$ssh_pubkey" '{gsub(/REPLACE_WITH_SSH_PUBKEY/, key); print}' "$CLOUD_INIT_USERDATA" > "${tmpdir}/user-data"
-
-    genisoimage -output "$SEED_ISO" -volid cidata -joliet -rock \
-        "${tmpdir}/user-data" "${tmpdir}/meta-data" 2>/dev/null
-    rm -rf "$tmpdir"
-    trap - EXIT
 
     # --- Determine OS variant ---
     local os_variant="fedora-unknown"
@@ -258,6 +243,9 @@ EOF
     fi
 
     # --- Create and start the VM ---
+    # Uses QEMU's built-in SLiRP user networking (no passt, no SELinux issues,
+    # no root required). SSH port forwarding is added via QEMU monitor after boot.
+    # virt-install --cloud-init handles the NoCloud datasource ISO internally.
     info "Running virt-install..."
     "${VIRT_INSTALL[@]}" \
         --name "$VM_NAME" \
@@ -265,10 +253,28 @@ EOF
         --vcpus "$VM_VCPUS" \
         --os-variant "$os_variant" \
         --disk "path=${DISK_PATH},format=qcow2" \
-        --disk "path=${SEED_ISO},device=cdrom" \
-        --network user,model=virtio,backend.type=passt,portForward0.proto=tcp,portForward0.range0.start=${SSH_HOST_PORT},portForward0.range0.to=22 \
+        --network user,model=virtio \
+        --cloud-init "user-data=${tmpdir}/user-data" \
         --noautoconsole \
         --import
+
+    rm -rf "$tmpdir"
+    trap - EXIT
+
+    # Add SSH port forwarding via QEMU monitor (SLiRP hostfwd).
+    info "Adding SSH port forwarding (host:${SSH_HOST_PORT} -> guest:22)..."
+    local retries=0
+    while [ $retries -lt 15 ]; do
+        if "${VIRSH[@]}" qemu-monitor-command "$VM_NAME" --hmp \
+            "hostfwd_add hostnet0 tcp::${SSH_HOST_PORT}-:22" 2>/dev/null; then
+            break
+        fi
+        retries=$((retries + 1))
+        sleep 1
+    done
+    if [ $retries -eq 15 ]; then
+        die "Failed to add SSH port forwarding after 15 attempts"
+    fi
 
     wait_for_ssh
     wait_for_provisioning
@@ -345,7 +351,8 @@ cmd_demo() {
         echo "  sandbox   Sandbox Live: real agent under kernel enforcement"
         echo "  e2e       E2E Governance: trust scoring, provenance, attestation"
         echo "  rootless  Rootless: governance without root (fuse-overlayfs, session bus)"
-        echo "  all       Run all demos sequentially"
+        echo "  tui       TUI: interactive terminal UI with live governance events"
+        echo "  all       Run all demos sequentially (excludes tui)"
         exit 1
     fi
 
@@ -390,8 +397,15 @@ SANDBOX_SCRIPT
             ssh "${SSH_OPTS[@]}" -t "${VM_USER}@localhost" \
                 "cd ${VM_PROJECT_DIR} && source \"\$HOME/.cargo/env\" && demo/run_demo_rootless.sh"
             ;;
+        tui)
+            info "Running TUI demo in VM (interactive — press q to exit)..."
+            ssh "${SSH_OPTS[@]}" -t "${VM_USER}@localhost" \
+                "cd ${VM_PROJECT_DIR} && source \"\$HOME/.cargo/env\" && demo/run_demo_tui.sh"
+            ;;
         all)
-            info "Running all demos sequentially..."
+            # Note: tui is excluded from 'all' because it is interactive and
+            # blocks until the user presses q. Run it separately.
+            info "Running all demos sequentially (excluding tui)..."
             cmd_demo phase1
             echo ""
             cmd_demo phase2
@@ -403,7 +417,7 @@ SANDBOX_SCRIPT
             cmd_demo rootless
             ;;
         *)
-            die "Unknown demo: $demo_name. Use: phase1, phase2, sandbox, e2e, rootless, or all"
+            die "Unknown demo: $demo_name. Use: phase1, phase2, sandbox, e2e, rootless, tui, or all"
             ;;
     esac
 }
@@ -528,7 +542,7 @@ case "${1:-}" in
         echo "  build      cargo build --workspace --release inside VM"
         echo "  test       cargo test --workspace inside VM"
         echo "  security   Run security tests (sudo) inside VM"
-        echo "  demo <n>   Run a demo inside VM (phase1|phase2|sandbox|e2e|rootless|all)"
+        echo "  demo <n>   Run a demo inside VM (phase1|phase2|sandbox|e2e|rootless|tui|all)"
         echo "  start      Start a stopped VM"
         echo "  stop       Shutdown VM"
         echo "  destroy    Delete VM and all storage"
@@ -536,7 +550,7 @@ case "${1:-}" in
         echo "  ssh [cmd]  Run a command via SSH (or open shell)"
         echo ""
         echo "Prerequisites (one-time, requires sudo):"
-        echo "  sudo dnf install libvirt virt-install qemu-kvm genisoimage passt rsync"
+        echo "  sudo dnf install libvirt virt-install qemu-kvm rsync"
         echo "  sudo systemctl enable --now libvirtd"
         echo ""
         echo "After initial setup, all VM operations run as your user (no sudo)."

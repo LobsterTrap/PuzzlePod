@@ -14,12 +14,14 @@
 #   cloud-localds seed.iso puzzled-dev-libvirt.yaml meta-data.yaml
 #   virt-install ... --disk path=seed.iso,device=cdrom ...
 
+# Define the fedora user explicitly with SSH key.
+# Do NOT use "- default" — it conflicts with explicit user definitions
+# on Fedora 42 Cloud images and prevents SSH key injection.
 users:
-  - name: puzzlepod
+  - name: fedora
     sudo: ALL=(ALL) NOPASSWD:ALL
-    shell: /bin/bash
     groups: wheel
-    # SSH key is injected by scripts/libvirt-dev.sh at setup time
+    shell: /bin/bash
     ssh_authorized_keys:
       - REPLACE_WITH_SSH_PUBKEY
 
@@ -177,10 +179,7 @@ runcmd:
   # -------------------------------------------------------
   - |
     mkdir -p /etc/systemd/system/user@.service.d
-    cat > /etc/systemd/system/user@.service.d/delegate.conf << 'DELEGATE'
-[Service]
-Delegate=cpu cpuset io memory pids
-DELEGATE
+    printf '[Service]\nDelegate=cpu cpuset io memory pids\n' > /etc/systemd/system/user@.service.d/delegate.conf
     systemctl daemon-reload
 
   # -------------------------------------------------------
@@ -214,34 +213,28 @@ DELEGATE
   # 8. Set up D-Bus policy for puzzled development
   # -------------------------------------------------------
   - |
-    cat > /etc/dbus-1/system.d/org.lobstertrap.PuzzlePod1.conf << 'DBUS'
-<!DOCTYPE busconfig PUBLIC "-//freedesktop//DTD D-BUS Bus Configuration 1.0//EN"
- "http://www.freedesktop.org/standards/dbus/1.0/busconfig.dtd">
-<busconfig>
-  <!-- Allow root to own the puzzled bus name -->
-  <policy user="root">
-    <allow own="org.lobstertrap.PuzzlePod1"/>
-    <allow send_destination="org.lobstertrap.PuzzlePod1"/>
-    <allow receive_sender="org.lobstertrap.PuzzlePod1"/>
-  </policy>
-
-  <!-- DEV VM ONLY: allows wheel group users to call puzzled.
-       Production should restrict send_destination to specific interfaces/methods.
-       Do NOT copy to production systems. -->
-  <policy group="wheel">
-    <allow send_destination="org.lobstertrap.PuzzlePod1"/>
-    <allow receive_sender="org.lobstertrap.PuzzlePod1"/>
-  </policy>
-</busconfig>
-DBUS
+    DBUS_CONF=/etc/dbus-1/system.d/org.lobstertrap.PuzzlePod1.conf
+    echo '<!DOCTYPE busconfig PUBLIC "-//freedesktop//DTD D-BUS Bus Configuration 1.0//EN"' > "$DBUS_CONF"
+    echo ' "http://www.freedesktop.org/standards/dbus/1.0/busconfig.dtd">' >> "$DBUS_CONF"
+    echo '<busconfig>' >> "$DBUS_CONF"
+    echo '  <policy user="root">' >> "$DBUS_CONF"
+    echo '    <allow own="org.lobstertrap.PuzzlePod1"/>' >> "$DBUS_CONF"
+    echo '    <allow send_destination="org.lobstertrap.PuzzlePod1"/>' >> "$DBUS_CONF"
+    echo '    <allow receive_sender="org.lobstertrap.PuzzlePod1"/>' >> "$DBUS_CONF"
+    echo '  </policy>' >> "$DBUS_CONF"
+    echo '  <policy group="wheel">' >> "$DBUS_CONF"
+    echo '    <allow send_destination="org.lobstertrap.PuzzlePod1"/>' >> "$DBUS_CONF"
+    echo '    <allow receive_sender="org.lobstertrap.PuzzlePod1"/>' >> "$DBUS_CONF"
+    echo '  </policy>' >> "$DBUS_CONF"
+    echo '</busconfig>' >> "$DBUS_CONF"
     systemctl reload dbus 2>/dev/null || true
 
   # -------------------------------------------------------
   # 9. Create project directory for rsync target
   # -------------------------------------------------------
   - |
-    mkdir -p /home/puzzlepod/puzzlepod
-    chown puzzlepod:puzzlepod /home/puzzlepod/puzzlepod
+    mkdir -p /home/fedora/puzzlepod
+    chown fedora:fedora /home/fedora/puzzlepod
 
   # -------------------------------------------------------
   # 10. Print summary
@@ -252,15 +245,15 @@ DBUS
     echo "  PuzzlePod dev environment ready"
     echo "=========================================="
     echo ""
-    RUST_VER=$(su - puzzlepod -c 'source "$HOME/.cargo/env" && rustc --version 2>/dev/null' || echo 'not found')
-    CARGO_VER=$(su - puzzlepod -c 'source "$HOME/.cargo/env" && cargo --version 2>/dev/null' || echo 'not found')
+    RUST_VER=$(su - fedora -c 'source "$HOME/.cargo/env" && rustc --version 2>/dev/null' || echo 'not found')
+    CARGO_VER=$(su - fedora -c 'source "$HOME/.cargo/env" && cargo --version 2>/dev/null' || echo 'not found')
     echo "  Rust:     ${RUST_VER}"
     echo "  Cargo:    ${CARGO_VER}"
     echo "  Clang:    $(clang --version 2>/dev/null | head -1 || echo 'not found')"
     echo "  bpftool:  $(bpftool version 2>/dev/null | head -1 || echo 'not found')"
     echo "  Kernel:   $(uname -r)"
     echo ""
-    echo "  Project:  /home/puzzlepod/puzzlepod (synced from host via rsync)"
+    echo "  Project:  /home/fedora/puzzlepod (synced from host via rsync)"
     echo "  XFS test: /var/lib/puzzled/test-xfs"
     echo "  D-Bus:    org.lobstertrap.PuzzlePod1"
     echo ""
