@@ -22,7 +22,6 @@ permissions:
   contents: write
   pull-requests: write
   issues: write
-  id-token: write
 
 concurrency:
   group: agent-issue-${{ github.event.issue.number || github.event.inputs.issue_number }}
@@ -133,10 +132,9 @@ jobs:
       image: ghcr.io/block/goose:latest
       options: --user root
       env:
-        GOOSE_PROVIDER: google-vertex-ai
-        GOOSE_MODEL: ${{ vars.GOOSE_MODEL || 'claude-opus-4-20250514' }}
-        GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
-        GCP_LOCATION: ${{ vars.GCP_REGION || 'us-east5' }}
+        GOOSE_PROVIDER: google
+        GOOSE_MODEL: ${{ vars.GOOSE_MODEL || 'gemini-3.1-pro-preview' }}
+        GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
         HOME: /tmp/goose-home
 
     steps:
@@ -194,12 +192,6 @@ jobs:
           fi
           gh issue comment "$ISSUE" --repo "$REPO" \
             --body "Goose agent dispatched (work type: \`${WORK_TYPE}\`). Working on it..."
-
-      - name: Authenticate to GCP
-        uses: google-github-actions/auth@v2
-        with:
-          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
-          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
 
       - name: Checkout
         uses: actions/checkout@v4

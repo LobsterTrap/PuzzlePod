@@ -353,9 +353,10 @@ PuzzlePod uses [Goose](https://block.github.io/goose/) to automatically implemen
 
 Remove the `agent:failed` label and re-add the trigger label (`agent:implement`, `agent:fix`, or `agent:test`).
 
-### Infrastructure Setup
+### Setup
 
-See [docs/gcp-setup.md](docs/gcp-setup.md) for GCP Workload Identity Federation configuration. Required GitHub secrets: `GCP_WORKLOAD_IDENTITY_PROVIDER`, `GCP_SERVICE_ACCOUNT`. Required variables: `GCP_PROJECT_ID`, `GCP_REGION`, `GOOSE_MODEL`.
+Required GitHub secret: `GOOGLE_API_KEY` (Google AI API key for Gemini).
+Optional GitHub variable: `GOOSE_MODEL` (defaults to `gemini-3.1-pro-preview`).
 
 ---
 
