@@ -18,6 +18,9 @@ on:
       - 'skills/**'
       - '.claude/**'
   workflow_dispatch:
+  workflow_run:
+    workflows: ["Agent Dispatch"]
+    types: [completed]
 
 permissions:
   contents: read
@@ -32,15 +35,57 @@ env:
 
 jobs:
   # ---------------------------------------------------------------------------
+  # Resolve the ref to check out (handles workflow_run from Agent Dispatch)
+  # ---------------------------------------------------------------------------
+  resolve-ref:
+    name: Resolve Ref
+    if: >
+      github.event_name != 'workflow_run' ||
+      github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    outputs:
+      ref: ${{ steps.ref.outputs.ref }}
+    steps:
+      - name: Download branch ref from Agent Dispatch
+        if: github.event_name == 'workflow_run'
+        uses: actions/download-artifact@v4
+        with:
+          name: agent-branch
+          path: /tmp
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+        continue-on-error: true
+
+      - name: Determine checkout ref
+        id: ref
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_run" ]; then
+            if [ -f /tmp/agent-branch.txt ]; then
+              BRANCH=$(cat /tmp/agent-branch.txt)
+              echo "ref=$BRANCH" >> $GITHUB_OUTPUT
+              echo "::notice::Running CI on agent branch: $BRANCH"
+            else
+              echo "::notice::No agent-branch artifact found, skipping"
+              echo "ref=" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "ref=" >> $GITHUB_OUTPUT
+          fi
+
+  # ---------------------------------------------------------------------------
   # CI: license headers + fmt + clippy + unit tests + feature matrix + cargo-deny
   # ---------------------------------------------------------------------------
   ci:
     name: Build & Test
+    needs: [resolve-ref]
+    if: needs.resolve-ref.outputs.ref != ''
     runs-on: ubuntu-latest
     container:
       image: ghcr.io/lobstertrap/puzzlepod/ci:fedora42
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.resolve-ref.outputs.ref }}
 
       - name: "Suite 0/5 — License Headers"
         run: |
@@ -97,12 +142,14 @@ jobs:
   # ---------------------------------------------------------------------------
   integration:
     name: D-Bus Integration
-    needs: [ci]
+    needs: [resolve-ref, ci]
     runs-on: ubuntu-latest
     container:
       image: ghcr.io/lobstertrap/puzzlepod/ci:fedora42
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.resolve-ref.outputs.ref }}
 
       - name: Cache cargo registry and build
         uses: actions/cache@v4
@@ -223,6 +270,7 @@ jobs:
   # ---------------------------------------------------------------------------
   security-test:
     name: Security Tests
+    needs: [resolve-ref]
     if: github.event_name == 'workflow_dispatch'
     runs-on: [self-hosted, privileged]
     continue-on-error: true
@@ -231,6 +279,8 @@ jobs:
       options: --privileged
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.resolve-ref.outputs.ref }}
 
       - name: "Suite 1/3 — Cargo Integration Tests (root + Linux)"
         run: |
@@ -265,13 +315,15 @@ jobs:
   # ---------------------------------------------------------------------------
   release:
     name: Release Build
+    needs: [resolve-ref, ci]
     if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
-    needs: [ci]
     runs-on: ubuntu-latest
     container:
       image: ghcr.io/lobstertrap/puzzlepod/ci:fedora42
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.resolve-ref.outputs.ref }}
 
       - name: Build release binaries
         run: cargo build --workspace --profile release

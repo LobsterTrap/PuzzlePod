@@ -276,6 +276,19 @@ jobs:
 
             Generated-by: Goose (Block) <noreply@block.xyz>
 
+      - name: Save branch ref for CI
+        if: steps.goose.outputs.has_changes == 'true' && steps.pr.outputs.pull-request-url
+        run: |
+          echo "goose/issue-${{ steps.issue.outputs.number }}" > /tmp/agent-branch.txt
+
+      - name: Upload branch ref artifact
+        if: steps.goose.outputs.has_changes == 'true' && steps.pr.outputs.pull-request-url
+        uses: actions/upload-artifact@v4
+        with:
+          name: agent-branch
+          path: /tmp/agent-branch.txt
+          retention-days: 1
+
       - name: Report success
         if: steps.goose.outputs.has_changes == 'true' && steps.pr.outputs.pull-request-url
         env:
