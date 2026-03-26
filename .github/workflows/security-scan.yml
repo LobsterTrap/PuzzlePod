@@ -12,27 +12,7 @@ permissions:
   contents: read
   security-events: write
 
-env:
-  CI_IMAGE: ghcr.io/lobstertrap/puzzlepod/ci:fedora42
-
 jobs:
-  dependency-audit:
-    name: Dependency Audit
-    runs-on: ubuntu-latest
-    container:
-      image: ghcr.io/lobstertrap/puzzlepod/ci:fedora42
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Check advisories
-        run: cargo-deny check advisories
-
-      - name: Check licenses
-        run: cargo-deny check licenses
-
-      - name: Check sources
-        run: cargo-deny check sources
-
   secret-detection:
     name: Secret Detection
     runs-on: ubuntu-latest

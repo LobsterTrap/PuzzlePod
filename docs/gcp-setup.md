@@ -1,7 +1,7 @@
-# GCP Setup for PuzzlePod CI/CD
+# GCP Setup for Agent Dispatch
 
-This guide documents how to configure GCP Workload Identity Federation for GitHub Actions,
-enabling the PuzzlePod CI/CD pipeline to call Vertex AI without stored API keys.
+This guide configures GCP Workload Identity Federation so the `agent-dispatch.yml`
+workflow can call Vertex AI (Claude on Vertex) without stored API keys.
 
 ## Prerequisites
 
@@ -24,11 +24,10 @@ gcloud services enable aiplatform.googleapis.com \
 ```bash
 gcloud iam workload-identity-pools create github-actions-pool \
   --location="global" \
-  --display-name="GitHub Actions Pool" \
-  --description="Workload Identity Pool for GitHub Actions CI/CD"
+  --display-name="GitHub Actions Pool"
 ```
 
-## Step 3: Create Workload Identity Provider
+## Step 3: Create OIDC Provider
 
 Replace `<GITHUB_ORG>` with your GitHub organization or username.
 
@@ -46,21 +45,16 @@ gcloud iam workload-identity-pools providers create-oidc github-actions-provider
 
 ```bash
 gcloud iam service-accounts create puzzlepod-ci \
-  --display-name="PuzzlePod CI Service Account" \
-  --description="Service account for PuzzlePod GitHub Actions workflows"
-```
+  --display-name="PuzzlePod CI Service Account"
 
-## Step 5: Grant Vertex AI Access
-
-```bash
 gcloud projects add-iam-policy-binding <PROJECT_ID> \
   --member="serviceAccount:puzzlepod-ci@<PROJECT_ID>.iam.gserviceaccount.com" \
   --role="roles/aiplatform.user"
 ```
 
-## Step 6: Bind Workload Identity to Service Account
+## Step 5: Bind Workload Identity
 
-Replace `<PROJECT_NUMBER>` (numeric) and `<GITHUB_ORG>/<REPO>` with your values.
+Replace `<PROJECT_NUMBER>` and `<GITHUB_ORG>/<REPO>` with your values.
 
 ```bash
 gcloud iam service-accounts add-iam-policy-binding \
@@ -69,7 +63,7 @@ gcloud iam service-accounts add-iam-policy-binding \
   --member="principalSet://iam.googleapis.com/projects/<PROJECT_NUMBER>/locations/global/workloadIdentityPools/github-actions-pool/attribute.repository/<GITHUB_ORG>/<REPO>"
 ```
 
-## Step 7: Get Provider Resource Name
+## Step 6: Get Provider Resource Name
 
 ```bash
 gcloud iam workload-identity-pools providers describe github-actions-provider \
@@ -78,35 +72,39 @@ gcloud iam workload-identity-pools providers describe github-actions-provider \
   --format="value(name)"
 ```
 
-This outputs a string like:
-```
-projects/<PROJECT_NUMBER>/locations/global/workloadIdentityPools/github-actions-pool/providers/github-actions-provider
-```
-
-## Step 8: Configure GitHub Repository
-
-Add the following to your GitHub repository:
+## Step 7: Configure GitHub Repository
 
 ### Secrets (Settings > Secrets and variables > Actions > Secrets)
-- `GCP_WORKLOAD_IDENTITY_PROVIDER`: The full provider resource name from Step 7
-- `GCP_SERVICE_ACCOUNT`: `puzzlepod-ci@<PROJECT_ID>.iam.gserviceaccount.com`
+
+| Secret | Value |
+|--------|-------|
+| `GCP_WORKLOAD_IDENTITY_PROVIDER` | Full provider resource name from Step 6 |
+| `GCP_SERVICE_ACCOUNT` | `puzzlepod-ci@<PROJECT_ID>.iam.gserviceaccount.com` |
 
 ### Variables (Settings > Secrets and variables > Actions > Variables)
-- `GCP_PROJECT_ID`: Your GCP project ID
-- `GCP_REGION`: Vertex AI region (default: `us-east5`)
 
-## Verification
+| Variable | Value | Default |
+|----------|-------|---------|
+| `GCP_PROJECT_ID` | Your GCP project ID | (required) |
+| `GCP_REGION` | Vertex AI region | `us-east5` |
+| `GOOSE_MODEL` | Model for Goose agent | `claude-opus-4-20250514` |
 
-After configuration, the `agent-review.yml` workflow will automatically:
-1. Exchange the GitHub OIDC token for short-lived GCP credentials
-2. Call Vertex AI (Claude on Vertex) for PR reviews
-3. Post review comments on the PR
+### Labels (Settings > Labels)
 
-To verify manually, trigger the workflow on a test PR and check the workflow logs.
+Create these labels for the agent dispatch workflow:
+
+| Label | Color | Purpose |
+|-------|-------|---------|
+| `agent:implement` | `#0075ca` | Trigger: implement a feature |
+| `agent:fix` | `#d73a4a` | Trigger: fix a bug |
+| `agent:test` | `#a2eeef` | Trigger: write tests |
+| `agent:in-progress` | `#fbca04` | State: agent is working |
+| `agent:pr-created` | `#0e8a16` | State: draft PR exists |
+| `agent:failed` | `#b60205` | State: agent failed |
 
 ## Security Notes
 
-- **No long-lived credentials**: All authentication uses short-lived tokens via OIDC federation
-- **Scoped access**: The attribute condition restricts access to your specific repository
-- **Minimal permissions**: The service account only has `roles/aiplatform.user`
-- **Audit trail**: All API calls are logged in GCP Cloud Audit Logs
+- **No long-lived credentials**: All authentication uses short-lived OIDC tokens
+- **Scoped access**: Attribute condition restricts to your specific repository
+- **Minimal permissions**: Service account only has `roles/aiplatform.user`
+- **Audit trail**: All Vertex AI calls are logged in GCP Cloud Audit Logs

@@ -121,23 +121,40 @@ Post the review as a GitHub PR comment using this structure:
 - [ ] FAIL -- do not merge until findings rated 4+ are resolved
 ```
 
-## Posting Review Comments
+## Security Scanning Checklist
 
-Use the `gh` CLI to post the review:
-
-```bash
-gh pr comment <number> --body "<review content>"
-```
-
-For inline comments on specific lines, use the GitHub review API:
+When reviewing security posture, run these checks:
 
 ```bash
-gh api repos/{owner}/{repo}/pulls/<number>/reviews \
-  --method POST \
-  -f body="<summary>" \
-  -f event="COMMENT" \
-  -f comments="[{\"path\":\"<file>\",\"line\":<line>,\"body\":\"<comment>\"}]"
+# Dependency advisories + license compliance + source restrictions
+cargo-deny check
+
+# Container image scan (CI and release images)
+trivy image ghcr.io/lobstertrap/puzzlepod/ci:fedora42
+
+# Secret detection across repo history
+gitleaks detect --source . --report-path gitleaks-report.json
+
+# SBOM generation for container images
+syft ghcr.io/lobstertrap/puzzlepod/puzzlepod -o spdx-json > sbom.spdx.json
+
+# Container image signing (release pipeline)
+cosign sign --yes ghcr.io/lobstertrap/puzzlepod/puzzlepod@<digest>
+
+# Verify signature
+cosign verify ghcr.io/lobstertrap/puzzlepod/puzzlepod
 ```
+
+**SELinux policy review** (`selinux/puzzlepod.te`):
+- No `unconfined_t` or overly permissive allow rules
+- Proper type transitions for `puzzlepod_t` domain
+- Proper labeling of config files, sockets, and data directories
+
+**Supply chain integrity:**
+- `Cargo.lock` is committed and not in `.gitignore`
+- `deny.toml` restricts registry sources
+- CI pins dependency versions; no unreviewed `cargo update`
+- Release artifacts signed with cosign (Sigstore keyless)
 
 ## Boundaries
 
@@ -157,29 +174,11 @@ scrutiny as human-authored code -- arguably more, because AI-generated code is
 statistically more likely to contain hallucinated API calls and cargo-cult
 patterns.
 
-## Relationship Diagram
-
-```mermaid
-graph LR
-    A[PR Author] -->|submits PR| B[adversarial-qe]
-    B -->|reviews| C[GitHub PR Comment]
-    B -->|files defects| D[GitHub Issues]
-    B -->|references| E[tests/security/]
-    B -->|references| F[e2e_adversarial.rs]
-    B -->|references| G[rogue-agent-test-report.md]
-    C -->|informs| H[Maintainer Decision]
-    D -->|tracks| I[Remediation]
-```
-
 ## Typical Flow
 
-1. A PR is opened or updated.
-2. CI runs standard tests (`make ci`) and security tests (`make test-security`).
-3. The adversarial-qe agent receives the PR number.
-4. Agent reads the diff, maps changed code to attack dimensions.
-5. Agent evaluates each applicable dimension, scores it, documents findings.
-6. Agent posts a structured review comment on the PR.
-7. If findings >= severity 4, agent files GitHub Issues with `bug` and
+1. Read the PR diff and map changed code to attack dimensions.
+2. Evaluate each applicable dimension, score it, document findings.
+3. Post a structured review comment on the PR.
+4. If findings >= severity 4, file GitHub Issues with `bug` and
    `adversarial-qe` labels.
-8. Author addresses findings and requests re-review.
-9. Agent re-evaluates and updates scores.
+5. Re-evaluate after author addresses findings.

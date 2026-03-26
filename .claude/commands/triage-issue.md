@@ -1,6 +1,6 @@
-Triage GitHub issue #$ARGUMENTS using the product-manager skill.
+Triage GitHub issue #$ARGUMENTS using the process skill.
 
-1. Read `skills/product-manager.md` for triage guidelines
+1. Read `skills/process.md` for triage guidelines
 2. Fetch issue: `gh issue view $ARGUMENTS`
 3. Analyze:
    - Is the issue well-formed? (Goal + Acceptance Criteria present?)

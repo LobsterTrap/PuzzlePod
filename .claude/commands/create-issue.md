@@ -1,6 +1,6 @@
 Create a well-structured GitHub Issue for PuzzlePod.
 
-Using the product-manager skill from `skills/product-manager.md`:
+Using the process skill from `skills/process.md`:
 
 1. Ask for: title, description, type (bug/feature/task/spike), priority, component
 2. Search for duplicates: `gh issue list --search "$ARGUMENTS"`

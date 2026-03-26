@@ -40,93 +40,7 @@ heuristics or probabilistic behavior in the governance path.
 | Agent profiles | `policies/profiles/*.yaml` | Profile definitions that drive sandbox config |
 | Commit rules | `policies/rules/commit.rego` | OPA/Rego governance policies |
 | AI policy | `docs/AI_POLICY.md` | Attribution, review, and data handling rules |
-
-## Issue Tracker Integration
-
-PuzzlePod uses **GitHub Issues** for all work tracking. Use the `gh` CLI for all
-interactions.
-
-### Reading Issues
-
-```bash
-# View an issue with full details
-gh issue view 42
-
-# List issues assigned to you
-gh issue list --assignee @me
-
-# List issues by label
-gh issue list --label "comp:puzzled"
-gh issue list --label "P0-critical"
-
-# List issues in a milestone
-gh issue list --milestone "Phase 1: Core Containment"
-```
-
-### Creating and Updating Issues
-
-```bash
-# Create a task issue
-gh issue create --title "Add Landlock network ruleset support" \
-  --label "task,comp:puzzled,P1-high" \
-  --milestone "Phase 1: Core Containment" \
-  --body "## Goal\n\nImplement Landlock ABI v5 network ACL.\n\n## Acceptance Criteria\n\n- [ ] TCP bind/connect filtering works\n- [ ] Profile schema updated\n- [ ] Integration test added"
-
-# Comment on an issue with progress
-gh issue comment 42 --body "Landlock network ruleset implemented. PR incoming."
-
-# Close an issue
-gh issue close 42 --comment "Resolved in #55"
-```
-
-### Labels
-
-| Label | Purpose |
-|-------|---------|
-| `epic` | Large body of work spanning multiple issues |
-| `story` | User-visible feature or capability |
-| `task` | Implementation work item |
-| `spike` | Research or investigation |
-| `bug` | Defect in existing functionality |
-| `P0-critical` | Production-breaking, fix immediately |
-| `P1-high` | Must fix before next release |
-| `P2-medium` | Should fix, can be scheduled |
-| `P3-low` | Nice to have, backlog |
-| `comp:puzzled` | Daemon component |
-| `comp:puzzlectl` | CLI component |
-| `comp:types` | Shared types crate |
-| `comp:proxy` | Puzzle-proxy component |
-| `comp:hook` | OCI hook component |
-| `comp:init` | Container init component |
-| `comp:policy` | OPA/Rego policies |
-| `comp:sandbox` | Sandbox enforcement |
-| `comp:dbus` | D-Bus API surface |
-| `comp:selinux` | SELinux policy module |
-
-### Branch Naming
-
-Branch from the issue number:
-
-```
-feat/42-landlock-network-ruleset
-fix/87-seccomp-eperm-handling
-refactor/103-branch-manager-async
-test/115-overlay-cleanup-integration
-docs/120-profile-authoring-guide
-```
-
-### Referencing Issues in Commits
-
-```
-feat(puzzled): add Landlock network ruleset support
-
-Implement Landlock ABI v5 TCP bind and connect filtering.
-Profiles can now specify allowed_ports in the network section.
-
-Closes #42
-Signed-off-by: Developer Name <developer@example.com>
-Assisted-by: Claude Code <noreply@anthropic.com>
-```
+| Process | `skills/process.md` | Issue workflow, commits, Definition of Done |
 
 ## Workflow
 
@@ -145,11 +59,7 @@ Read the GitHub Issue thoroughly. Identify:
 gh issue view 42
 ```
 
-If the issue is unclear, comment with questions before starting work:
-
-```bash
-gh issue comment 42 --body "Questions before I start:\n1. Should network rules apply per-branch or per-profile?\n2. What's the failure mode if Landlock ABI v5 is not available?"
-```
+If the issue is unclear, comment with questions before starting work.
 
 ### Step 2: Design Before Code
 
@@ -169,6 +79,8 @@ Create a feature branch and implement the change:
 ```bash
 git checkout -b feat/42-landlock-network-ruleset
 ```
+
+**Branch naming:** `<type>/<issue#>-<short-description>`
 
 **Code conventions:**
 
@@ -204,20 +116,11 @@ git checkout -b feat/42-landlock-network-ruleset
 Write tests appropriate to the change:
 
 ```bash
-# Unit tests (no root required)
-make test
-
-# Integration tests (root + Linux required)
-sudo make test-integration
-
-# Live D-Bus tests (requires running puzzled)
-make test-dbus
-
-# Security shell tests (root + Linux required)
-sudo make test-security
-
-# Full CI checks (fmt + clippy + test + deny)
-make ci
+make test              # Unit tests (no root required)
+make test-integration  # Integration tests (root + Linux required)
+make test-dbus         # Live D-Bus tests (requires running puzzled)
+make test-security     # Security shell tests (root + Linux required)
+make ci                # Full CI checks (fmt + clippy + test + deny)
 ```
 
 **Test file locations:**
@@ -228,7 +131,6 @@ make ci
 | Integration tests | `crates/<crate>/tests/*.rs` | `make test-integration` |
 | Live D-Bus tests | `crates/puzzled/tests/live_dbus_integration.rs` | `make test-dbus` |
 | Security tests | `tests/security/*.sh` | `make test-security` |
-| Performance tests | `tests/performance/` | `make bench` |
 | Criterion benchmarks | `crates/puzzled/benches/` | `cargo bench` |
 
 **IMPORTANT:** When adding new test files to `crates/puzzled/tests/`, you must update
@@ -244,17 +146,7 @@ gh pr create --title "feat(puzzled): add Landlock network ruleset support" \
   --body "## Summary\n\nImplement Landlock ABI v5 network ACL.\n\nCloses #42\n\n## Test Plan\n\n- [ ] Unit tests pass\n- [ ] Integration test added\n- [ ] make ci green"
 ```
 
-### Step 6: QE Handoff
-
-After the PR is approved and merged, verify that:
-
-1. The test-qe skill (`skills/test-qe.md`) can write effective regression tests
-   against the new feature
-2. The adversarial-qe skill (`skills/adversarial-qe.md`) can attempt to bypass
-   any new security boundaries
-3. Update `docs/demo-guide.md` if the feature is demo-worthy
-
-## Review and Attack Dimensions
+## Review Dimensions
 
 When reviewing code (your own or others'), evaluate along these dimensions:
 
@@ -269,9 +161,51 @@ When reviewing code (your own or others'), evaluate along these dimensions:
 | **Compatibility** | Does this work on RHEL 10, Fedora 42, CentOS Stream 10? Both x86_64 and aarch64? |
 | **Determinism** | Is the governance path free of randomness, ML, or heuristic decisions? |
 
-## Output Format
+## CLI Conventions
 
-### Commit Messages
+- Long flags use `--kebab-case` (not `--snake_case` or `--camelCase`)
+- Short flags are single characters from the long flag name (`-v` for `--verbose`)
+- `--help` and `--version` on every command and subcommand
+- `--output=json` available on all commands producing structured output
+- Exit codes: 0 success, 1 error, 2 usage mistake
+- Boolean flags do not require a value (`--verbose`, not `--verbose=true`)
+- Mutually exclusive flags produce a clear error, not silent precedence
+- Environment variables use `PUZZLEPOD_` prefix
+- Colors disabled when stdout is not a TTY or `NO_COLOR` is set
+
+## Performance Anti-Patterns
+
+When reviewing or writing code, watch for these:
+
+- Blocking calls (`.read()`, `.write()`, `std::fs`) inside `async` functions
+  -- use `tokio::fs` or `spawn_blocking`
+- Unnecessary `.clone()` on large structs or `Vec`
+- `String` allocation in hot loops -- prefer `&str` or `Cow`
+- Missing `#[inline]` on small, frequently-called functions in hot paths
+- O(n^2) algorithms where O(n log n) or O(n) is possible
+- Unbounded `Vec::push` without `with_capacity` pre-allocation
+- Holding `Mutex` guards across `.await` points
+
+## Test Coverage Dimensions
+
+When designing tests for a feature, cover these dimensions:
+
+| Dimension | What to Test |
+|-----------|-------------|
+| **Functional correctness** | Does the feature work as specified? |
+| **Error handling** | Does the feature fail correctly? |
+| **Fail-closed behavior** | Does failure leave the system in a safe state? |
+| **Idempotency** | Is the D-Bus method safe to call twice? |
+| **Concurrency** | Does it work under concurrent access? |
+| **Resource exhaustion** | What happens at limits? |
+| **Adversarial input** | What happens with malicious input? (path traversal, symlinks) |
+| **Rollback** | Does rejection clean up completely? |
+| **Platform compatibility** | Landlock ABI differences on RHEL 10 vs Fedora 42? |
+| **Determinism** | Same result every time for identical input? |
+| **Privilege boundaries** | Does containment hold under the agent profile? |
+| **Crash recovery** | System recovers from SIGKILL + restart? |
+
+## Commit Messages
 
 ```
 <type>(<scope>): <description>
@@ -288,44 +222,6 @@ Assisted-by: Claude Code <noreply@anthropic.com>
 **Scopes:** `puzzled`, `puzzlectl`, `puzzled-types`, `puzzle-proxy`, `puzzle-hook`,
 `puzzle-init`, `policy`, `sandbox`, `dbus`
 
-### PR Description
-
-```markdown
-## Summary
-
-- What changed and why (1-3 bullets)
-
-Closes #<issue>
-
-## Test Plan
-
-- [ ] `make ci` passes
-- [ ] New unit tests added for <component>
-- [ ] Integration test covers <scenario>
-- [ ] Security review: <brief note on security implications>
-```
-
-## Posting Review Comments
-
-When reviewing a PR, post comments using:
-
-```bash
-gh pr review <number> --comment --body "Comment text"
-gh pr review <number> --approve --body "LGTM"
-gh pr review <number> --request-changes --body "Reason for changes"
-```
-
-For inline comments on specific code, use the GitHub web UI or:
-
-```bash
-gh api repos/LobsterTrap/PuzzlePod/pulls/<number>/comments \
-  --method POST \
-  -f body="Comment" \
-  -f commit_id="<sha>" \
-  -f path="<file>" \
-  -F position=<line>
-```
-
 ## Boundaries
 
 **You do:**
@@ -336,7 +232,6 @@ gh api repos/LobsterTrap/PuzzlePod/pulls/<number>/comments \
 
 **You do not:**
 - Modify Linux kernel code or write kernel modules
-- Make product decisions (escalate to `skills/product-manager.md`)
 - Introduce ML, heuristics, or probabilistic logic in the governance path
 - Deploy to production or manage infrastructure
 - Merge PRs without human approval
@@ -350,42 +245,3 @@ All AI-assisted development on PuzzlePod must follow `docs/AI_POLICY.md`. Key po
 - Security-sensitive paths (`crates/puzzled/src/sandbox/`, `policies/rules/`,
   `selinux/`, `bpf/`) require 2 human approvals
 - AI code review is advisory -- human reviewer is accountable
-
-## Relationships
-
-```mermaid
-graph TD
-    PM[product-manager.md] -->|writes issues| ENG[engineer.md]
-    ENG -->|implements| CODE[crates/ workspace]
-    ENG -->|writes tests| TEST[test-qe.md]
-    ENG -->|requests review| REVIEW[human reviewer]
-    ENG -->|follows| POLICY[docs/AI_POLICY.md]
-    ENG -->|follows| PE[product-engineering.md]
-    TEST -->|adversarial testing| ADV[adversarial-qe.md]
-    PE -->|defines process| ENG
-```
-
-## Typical Flow
-
-```mermaid
-sequenceDiagram
-    participant PM as Product Manager
-    participant GH as GitHub Issues
-    participant ENG as Engineer
-    participant CI as CI Pipeline
-    participant QE as Test QE
-    participant REV as Human Reviewer
-
-    PM->>GH: Create issue with goal + acceptance criteria
-    ENG->>GH: gh issue view, understand requirements
-    ENG->>ENG: Design, implement on feature branch
-    ENG->>ENG: Write tests, run make ci
-    ENG->>GH: gh pr create, link issue
-    CI->>CI: fmt + clippy + test + deny
-    REV->>GH: Review PR, approve or request changes
-    ENG->>GH: Address feedback, push updates
-    REV->>GH: Approve
-    ENG->>GH: Merge PR
-    QE->>ENG: Write regression + adversarial tests
-    ENG->>GH: gh issue close
-```

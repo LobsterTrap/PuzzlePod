@@ -58,3 +58,22 @@ Existing benchmarks: `branch.rs`, `diff.rs`, `policy.rs`, `wal.rs`
 Regression thresholds:
 - Warning: > 5% degradation
 - Failure: > 10% degradation
+
+## Coverage Dimensions
+
+When designing tests, cover these dimensions:
+
+| Dimension | What to Test |
+|-----------|-------------|
+| **Functional correctness** | Does the feature work as specified? |
+| **Error handling** | Does the feature fail correctly? |
+| **Fail-closed behavior** | Does failure leave the system in a safe state? |
+| **Idempotency** | Is the D-Bus method safe to call twice? |
+| **Concurrency** | Does it work under concurrent access? |
+| **Resource exhaustion** | What happens at limits? (1000 branches, max-size overlay) |
+| **Adversarial input** | Path traversal, symlinks, malformed data? |
+| **Rollback** | Does rejection clean up completely? |
+| **Platform compatibility** | Landlock ABI differences on RHEL 10 vs Fedora 42? |
+| **Determinism** | Same result every time for identical input? |
+| **Privilege boundaries** | Does containment hold under the agent profile? |
+| **Crash recovery** | System recovers from SIGKILL + restart? |

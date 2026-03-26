@@ -1,0 +1,334 @@
+name: Agent Dispatch
+
+on:
+  issues:
+    types: [labeled]
+  workflow_dispatch:
+    inputs:
+      issue_number:
+        description: 'Issue number to solve'
+        required: true
+        type: string
+      work_type:
+        description: 'Type of work'
+        required: true
+        type: choice
+        options:
+          - implement
+          - fix
+          - test
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+  id-token: write
+
+concurrency:
+  group: agent-issue-${{ github.event.issue.number || github.event.inputs.issue_number }}
+  cancel-in-progress: false
+
+env:
+  GOOSE_RECIPE: |
+    version: "1.0.0"
+    title: "Solve GitHub Issue"
+    description: "Solve GitHub issue #${ISSUE_NUMBER}"
+
+    extensions:
+      - type: builtin
+        name: developer
+
+    instructions: |
+      You are a Rust systems engineer working on PuzzlePod -- a userspace governance
+      daemon for AI agent workloads in containers on Linux.
+
+      Read AGENTS.md (or CLAUDE.md) at the repo root for full project context.
+
+      Conventions:
+      - Rust with tokio async runtime, zbus for D-Bus, clap for CLI, regorus for OPA/Rego
+      - All D-Bus methods must be idempotent
+      - CLI output must support --output=json
+      - Fail closed: if governance cannot be determined, rollback (never commit)
+      - No ML/heuristics in governance path -- deterministic OPA/Rego only
+      - Comment tags: H (hardening), M (mitigation), SC (seccomp), DC (design choice),
+        PM (Phase 2), L (lifecycle), A/B/C (audit fix)
+      - Use anyhow::Result for app errors, thiserror for library errors
+      - Use tracing for logging, not println
+      - Branch naming: <type>/<issue#>-<description>
+      - Conventional commits: <type>(<scope>): <description>
+
+      Testing:
+      - Unit tests in source files as #[cfg(test)] mod tests
+      - Integration tests in crates/<crate>/tests/*.rs
+      - CRITICAL: new test files in crates/puzzled/tests/ must be registered in BOTH
+        .github/workflows/ci.yml AND scripts/run_all_tests.sh
+      - Run: cargo check, cargo test, cargo fmt, cargo clippy --all-targets -- -D warnings
+
+      Safety:
+      - Never weaken sandbox enforcement or disable security controls
+      - unsafe code requires explicit justification + SAFETY comment
+      - Security-sensitive paths: crates/puzzled/src/sandbox/, policies/rules/,
+        selinux/, bpf/, crates/puzzled/src/dbus.rs
+
+    prompt: |
+      Solve GitHub issue #${ISSUE_NUMBER}: ${ISSUE_TITLE}
+
+      Work type: ${WORK_TYPE}
+
+      The issue is saved at /tmp/issue.json
+
+      Write this to your TODO immediately and update as you progress:
+
+      ## Phase 1: Understand
+      - [ ] Read /tmp/issue.json
+      - [ ] Write all requirements (explicit + implicit) to /tmp/requirements.md
+      - [ ] Read AGENTS.md (or CLAUDE.md) if it exists
+
+      ## Phase 2: Research
+      - [ ] rg "keyword" -l to find relevant files and similar patterns
+      - [ ] Read 2-3 similar implementations to copy their patterns
+      - [ ] List all files that need changes in TODO
+
+      ## Phase 3: Plan
+      - [ ] Decide on implementation approach
+      - [ ] If changing >5 files or public APIs, write plan to /tmp/plan.md first
+      - [ ] Update TODO with specific changes
+
+      ## Phase 4: Implement
+      - [ ] Implement minimal fix per /tmp/requirements.md
+      - [ ] Before adding anything, check: is it in the requirements? If not, don't.
+      - [ ] No .github/ changes, no lock files, no secrets
+
+      ## Phase 5: Verify
+      - [ ] cargo check
+      - [ ] cargo test (affected crates)
+      - [ ] cargo fmt
+      - [ ] cargo clippy --all-targets -- -D warnings
+      - [ ] Fix failures, retry up to 3 times
+
+      ## Phase 6: Confirm (MANDATORY)
+      - [ ] Reread /tmp/issue.json
+      - [ ] Reread /tmp/requirements.md
+      - [ ] Confirm all requirements met, nothing extra added
+      - [ ] Write a summary of changes to /tmp/issue_summary.txt
+
+      The Phase 6 "Reread" steps MUST appear in your updated TODO. Skipping them is failure.
+
+      Only write /tmp/issue_summary.txt if the fix is complete and verified.
+      Run git add for any new files required for the fix.
+      Do NOT commit. Leave changes in the working directory for the workflow to handle.
+
+jobs:
+  dispatch:
+    name: Goose Agent
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      (startsWith(github.event.label.name, 'agent:') &&
+       !contains(fromJSON('["agent:in-progress","agent:pr-created","agent:failed"]'),
+                 github.event.label.name))
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    container:
+      image: ghcr.io/block/goose:latest
+      options: --user root
+      env:
+        GOOSE_PROVIDER: google-vertex-ai
+        GOOSE_MODEL: ${{ vars.GOOSE_MODEL || 'claude-opus-4-20250514' }}
+        GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+        GCP_LOCATION: ${{ vars.GCP_REGION || 'us-east5' }}
+        HOME: /tmp/goose-home
+
+    steps:
+      - name: Determine issue number and work type
+        id: issue-info
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "number=${{ github.event.inputs.issue_number }}" >> $GITHUB_OUTPUT
+            echo "work_type=${{ github.event.inputs.work_type }}" >> $GITHUB_OUTPUT
+          else
+            echo "number=${{ github.event.issue.number }}" >> $GITHUB_OUTPUT
+            LABEL="${{ github.event.label.name }}"
+            case "$LABEL" in
+              agent:implement) echo "work_type=implement" >> $GITHUB_OUTPUT ;;
+              agent:fix)       echo "work_type=fix" >> $GITHUB_OUTPUT ;;
+              agent:test)      echo "work_type=test" >> $GITHUB_OUTPUT ;;
+              *)               echo "work_type=implement" >> $GITHUB_OUTPUT ;;
+            esac
+          fi
+
+      - name: Check for in-progress
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ISSUE: ${{ steps.issue-info.outputs.number }}
+          REPO: ${{ github.repository }}
+        run: |
+          apt-get update && apt-get install -y jq curl
+          curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
+            | dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg
+          ARCH=$(dpkg --print-architecture)
+          KEYRING=/usr/share/keyrings/githubcli-archive-keyring.gpg
+          echo "deb [arch=${ARCH} signed-by=${KEYRING}] https://cli.github.com/packages stable main" \
+            | tee /etc/apt/sources.list.d/github-cli.list > /dev/null
+          apt-get update && apt-get install -y gh
+
+          LABELS=$(gh issue view "$ISSUE" --repo "$REPO" --json labels -q '.labels[].name')
+          if echo "$LABELS" | grep -q 'agent:in-progress'; then
+            echo "::notice::Issue #${ISSUE} already has agent:in-progress label. Skipping."
+            exit 1
+          fi
+
+      - name: Mark in-progress
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ISSUE: ${{ steps.issue-info.outputs.number }}
+          REPO: ${{ github.repository }}
+          LABEL: ${{ github.event.label.name || '' }}
+          WORK_TYPE: ${{ steps.issue-info.outputs.work_type }}
+        run: |
+          gh issue edit "$ISSUE" --repo "$REPO" --add-label "agent:in-progress"
+          if [ -n "$LABEL" ]; then
+            gh issue edit "$ISSUE" --repo "$REPO" --remove-label "$LABEL" || true
+          fi
+          gh issue comment "$ISSUE" --repo "$REPO" \
+            --body "Goose agent dispatched (work type: \`${WORK_TYPE}\`). Working on it..."
+
+      - name: Authenticate to GCP
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 1
+
+      - name: Install build dependencies
+        run: |
+          apt-get install -y build-essential pkg-config libssl-dev gettext
+
+      - name: Get issue details
+        id: issue
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ISSUE: ${{ steps.issue-info.outputs.number }}
+          REPO: ${{ github.repository }}
+        run: |
+          gh api "/repos/${REPO}/issues/${ISSUE}" > /tmp/issue.json
+
+          echo "number=${ISSUE}" >> $GITHUB_OUTPUT
+
+          # SECURITY: Use random delimiter to prevent injection if title contains delimiter
+          DELIMITER="EOF_$(openssl rand -hex 8)"
+          echo "title<<$DELIMITER" >> $GITHUB_OUTPUT
+          jq -r '.title' /tmp/issue.json >> $GITHUB_OUTPUT
+          echo "$DELIMITER" >> $GITHUB_OUTPUT
+
+      - name: Run Goose
+        id: goose
+        env:
+          ISSUE_NUMBER: ${{ steps.issue.outputs.number }}
+          ISSUE_TITLE: ${{ steps.issue.outputs.title }}
+          WORK_TYPE: ${{ steps.issue-info.outputs.work_type }}
+        run: |
+          mkdir -p "$HOME/.local/share/goose/sessions"
+          mkdir -p "$HOME/.config/goose"
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+          echo "$GOOSE_RECIPE" | envsubst '$ISSUE_NUMBER $ISSUE_TITLE $WORK_TYPE' > /tmp/recipe.yaml
+
+          goose run --recipe /tmp/recipe.yaml
+
+          if [ -n "$(git status --porcelain)" ] && [ -f /tmp/issue_summary.txt ]; then
+            echo "has_changes=true" >> $GITHUB_OUTPUT
+            SUMMARY_DELIMITER="EOF_$(openssl rand -hex 8)"
+            echo "summary<<$SUMMARY_DELIMITER" >> $GITHUB_OUTPUT
+            cat /tmp/issue_summary.txt >> $GITHUB_OUTPUT
+            echo "$SUMMARY_DELIMITER" >> $GITHUB_OUTPUT
+          else
+            echo "has_changes=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Block .github changes
+        if: steps.goose.outputs.has_changes == 'true'
+        run: |
+          if git diff --name-only | grep -q "^\.github/"; then
+            echo "::warning::Goose modified .github/ files -- reverting those changes"
+            git checkout -- .github/
+          fi
+
+      - name: Create Pull Request
+        if: steps.goose.outputs.has_changes == 'true'
+        id: pr
+        uses: peter-evans/create-pull-request@v7
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: "${{ steps.issue-info.outputs.work_type }}: ${{ steps.issue.outputs.title }}"
+          title: "${{ steps.issue-info.outputs.work_type }}: ${{ steps.issue.outputs.title }}"
+          branch: goose/issue-${{ steps.issue.outputs.number }}
+          delete-branch: true
+          draft: true
+          labels: goose-generated
+          body: |
+            Closes #${{ steps.issue.outputs.number }}
+
+            ## Summary
+            ${{ steps.goose.outputs.summary || 'See commits for details.' }}
+
+            ---
+            *Generated by Goose agent dispatch. Human review required before merge.*
+
+            Generated-by: Goose (Block) <noreply@block.xyz>
+
+      - name: Report success
+        if: steps.goose.outputs.has_changes == 'true' && steps.pr.outputs.pull-request-url
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ISSUE: ${{ steps.issue.outputs.number }}
+          REPO: ${{ github.repository }}
+          PR_URL: ${{ steps.pr.outputs.pull-request-url }}
+        run: |
+          gh issue edit "$ISSUE" --repo "$REPO" \
+            --remove-label "agent:in-progress" \
+            --add-label "agent:pr-created"
+          gh issue comment "$ISSUE" --repo "$REPO" \
+            --body "Draft PR created: ${PR_URL}
+
+          Please review and merge if the changes look correct."
+
+      - name: Report no changes
+        if: steps.goose.outputs.has_changes != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ISSUE: ${{ steps.issue.outputs.number }}
+          REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          gh issue edit "$ISSUE" --repo "$REPO" \
+            --remove-label "agent:in-progress" \
+            --add-label "agent:failed"
+          gh issue comment "$ISSUE" --repo "$REPO" \
+            --body "Goose agent completed but produced no changes or did not confirm completion.
+          See [workflow run](${RUN_URL}) for details.
+
+          To retry, remove the \`agent:failed\` label and re-add the trigger label."
+
+      - name: Report failure
+        if: failure()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ISSUE: ${{ steps.issue-info.outputs.number }}
+          REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          gh issue edit "$ISSUE" --repo "$REPO" \
+            --remove-label "agent:in-progress" \
+            --add-label "agent:failed" || true
+          gh issue comment "$ISSUE" --repo "$REPO" \
+            --body "Goose agent failed. See [workflow run](${RUN_URL}) for details.
+
+          To retry, remove the \`agent:failed\` label and re-add the trigger label." || true

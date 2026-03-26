@@ -12,12 +12,9 @@ on:
 
 permissions:
   contents: write
-  packages: write
 
 env:
   CARGO_TERM_COLOR: always
-  REGISTRY: ghcr.io
-  IMAGE_NAME: ghcr.io/lobstertrap/puzzlepod/puzzlepod
 
 jobs:
   validate:
@@ -79,39 +76,9 @@ jobs:
             target/release/puzzlectl
             target/release/puzzle-sandbox-demo
 
-  container:
-    name: Build Release Container
-    needs: validate
-    uses: ./.github/workflows/container-build.yml
-    with:
-      image-tag: v${{ needs.validate.outputs.version }}
-      push: true
-    secrets:
-      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-  tag-latest:
-    name: Tag Container as Latest
-    needs: [validate, container]
-    runs-on: ubuntu-latest
-    permissions:
-      packages: write
-    steps:
-      - name: Log in to GHCR
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Tag as latest
-        run: |
-          docker pull ghcr.io/lobstertrap/puzzlepod/puzzlepod:v${{ needs.validate.outputs.version }}
-          docker tag ghcr.io/lobstertrap/puzzlepod/puzzlepod:v${{ needs.validate.outputs.version }} ghcr.io/lobstertrap/puzzlepod/puzzlepod:latest
-          docker push ghcr.io/lobstertrap/puzzlepod/puzzlepod:latest
-
   release:
     name: Create GitHub Release
-    needs: [validate, build, container]
+    needs: [validate, build]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -154,13 +121,7 @@ jobs:
 
           ## Installation
 
-          ### Binary
           Download the appropriate binary from the assets below.
-
-          ### Container
-          \`\`\`bash
-          podman pull ghcr.io/lobstertrap/puzzlepod/puzzlepod:v${VERSION}
-          \`\`\`
 
           ## Checksums
           See \`SHA256SUMS\` in the release assets." \
