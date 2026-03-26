@@ -805,7 +805,7 @@ mod tests {
         let reader_handle = tokio::spawn(async move {
             for _ in 0..50 {
                 let r = mgr_reader.resolve("pt_race").await.unwrap();
-                let val = std::str::from_utf8(&*r).unwrap().to_string();
+                let val = std::str::from_utf8(&r).unwrap().to_string();
                 // Value must be either "initial-value" or "rotated-value" — never corrupt
                 assert!(
                     val == "initial-value" || val == "rotated-value",

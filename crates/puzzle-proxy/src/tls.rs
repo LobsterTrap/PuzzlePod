@@ -320,6 +320,128 @@ fn parse_server_name_extension(data: &[u8]) -> Option<String> {
     None
 }
 
+// ---------------------------------------------------------------------------
+// §3.4 G13: CA key persistence (ACKF file format)
+// ---------------------------------------------------------------------------
+
+/// ACKF file format magic bytes.
+pub const ACKF_MAGIC: &[u8; 4] = b"ACKF";
+/// ACKF file format version.
+pub const ACKF_VERSION: u16 = 0x0001;
+
+/// Encrypt a CA key pair for persistence using AES-256-GCM.
+///
+/// The encryption key is derived via HKDF from the instance secret, with
+/// `branch_id` in the info string for domain separation.
+///
+/// File format (ACKF):
+/// - Magic: "ACKF" (4 bytes)
+/// - Version: 0x0001 (2 bytes, big-endian)
+/// - Key source: 1 byte (0x01 = instance_secret)
+/// - HKDF salt: 16 bytes random
+/// - AES-256-GCM nonce: 12 bytes random
+/// - Ciphertext + 16-byte GCM tag
+///
+/// Total header: 4 + 2 + 1 + 16 + 12 = 35 bytes
+pub fn encrypt_ca_key(
+    branch_id: &str,
+    key_pair_bytes: &[u8],
+    instance_secret: &[u8; 32],
+) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
+    use aes_gcm::{aead::Aead, Aes256Gcm, KeyInit, Nonce};
+    use hkdf::Hkdf;
+    use sha2::Sha256;
+
+    let mut salt = [0u8; 16];
+    let mut nonce_bytes = [0u8; 12];
+    getrandom::getrandom(&mut salt).map_err(|e| format!("getrandom failed: {}", e))?;
+    getrandom::getrandom(&mut nonce_bytes).map_err(|e| format!("getrandom failed: {}", e))?;
+
+    // Derive AES key via HKDF
+    let info = format!("puzzlepod-ca-key-v1:{}", branch_id);
+    let hkdf = Hkdf::<Sha256>::new(Some(&salt), instance_secret);
+    let mut aes_key = zeroize::Zeroizing::new([0u8; 32]);
+    hkdf.expand(info.as_bytes(), &mut *aes_key)
+        .map_err(|e| format!("HKDF expand failed: {}", e))?;
+
+    // Build header
+    let mut header = Vec::with_capacity(35);
+    header.extend_from_slice(ACKF_MAGIC); // 4
+    header.extend_from_slice(&ACKF_VERSION.to_be_bytes()); // 2
+    header.push(0x01); // key source: instance_secret        // 1
+    header.extend_from_slice(&salt); // 16
+    header.extend_from_slice(&nonce_bytes); // 12
+
+    // Encrypt with AAD = header bytes (integrity-protects magic, version, key source,
+    // salt, and nonce against tampering — F4 hardening).
+    let cipher =
+        Aes256Gcm::new_from_slice(&*aes_key).map_err(|e| format!("AES key init: {}", e))?;
+    let nonce = Nonce::from_slice(&nonce_bytes);
+    let ciphertext = cipher
+        .encrypt(
+            nonce,
+            aes_gcm::aead::Payload {
+                msg: key_pair_bytes,
+                aad: &header,
+            },
+        )
+        .map_err(|e| format!("AES-GCM encrypt: {}", e))?;
+
+    let mut output = header;
+    output.extend_from_slice(&ciphertext);
+    Ok(output)
+}
+
+/// Decrypt a CA key pair from an ACKF-formatted file.
+pub fn decrypt_ca_key(
+    branch_id: &str,
+    data: &[u8],
+    instance_secret: &[u8; 32],
+) -> Result<zeroize::Zeroizing<Vec<u8>>, Box<dyn std::error::Error>> {
+    use aes_gcm::{aead::Aead, Aes256Gcm, KeyInit, Nonce};
+    use hkdf::Hkdf;
+    use sha2::Sha256;
+
+    if data.len() < 35 {
+        return Err("ACKF file too short".into());
+    }
+    if &data[0..4] != ACKF_MAGIC {
+        return Err("invalid ACKF magic".into());
+    }
+    let version = u16::from_be_bytes([data[4], data[5]]);
+    if version != ACKF_VERSION {
+        return Err(format!("unsupported ACKF version: {}", version).into());
+    }
+
+    let salt = &data[7..23];
+    let nonce_bytes = &data[23..35];
+    let ciphertext = &data[35..];
+
+    // Derive key
+    let info = format!("puzzlepod-ca-key-v1:{}", branch_id);
+    let hkdf = Hkdf::<Sha256>::new(Some(salt), instance_secret);
+    let mut aes_key = zeroize::Zeroizing::new([0u8; 32]);
+    hkdf.expand(info.as_bytes(), &mut *aes_key)
+        .map_err(|e| format!("HKDF expand failed: {}", e))?;
+
+    // Decrypt with AAD = header bytes (F4: verify header integrity).
+    let header = &data[0..35];
+    let cipher =
+        Aes256Gcm::new_from_slice(&*aes_key).map_err(|e| format!("AES key init: {}", e))?;
+    let nonce = Nonce::from_slice(nonce_bytes);
+    let plaintext = cipher
+        .decrypt(
+            nonce,
+            aes_gcm::aead::Payload {
+                msg: ciphertext,
+                aad: header,
+            },
+        )
+        .map_err(|e| format!("AES-GCM decrypt: {}", e))?;
+
+    Ok(zeroize::Zeroizing::new(plaintext))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -571,126 +693,4 @@ mod tests {
 
         record
     }
-}
-
-// ---------------------------------------------------------------------------
-// §3.4 G13: CA key persistence (ACKF file format)
-// ---------------------------------------------------------------------------
-
-/// ACKF file format magic bytes.
-pub const ACKF_MAGIC: &[u8; 4] = b"ACKF";
-/// ACKF file format version.
-pub const ACKF_VERSION: u16 = 0x0001;
-
-/// Encrypt a CA key pair for persistence using AES-256-GCM.
-///
-/// The encryption key is derived via HKDF from the instance secret, with
-/// `branch_id` in the info string for domain separation.
-///
-/// File format (ACKF):
-/// - Magic: "ACKF" (4 bytes)
-/// - Version: 0x0001 (2 bytes, big-endian)
-/// - Key source: 1 byte (0x01 = instance_secret)
-/// - HKDF salt: 16 bytes random
-/// - AES-256-GCM nonce: 12 bytes random
-/// - Ciphertext + 16-byte GCM tag
-///
-/// Total header: 4 + 2 + 1 + 16 + 12 = 35 bytes
-pub fn encrypt_ca_key(
-    branch_id: &str,
-    key_pair_bytes: &[u8],
-    instance_secret: &[u8; 32],
-) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
-    use aes_gcm::{aead::Aead, Aes256Gcm, KeyInit, Nonce};
-    use hkdf::Hkdf;
-    use sha2::Sha256;
-
-    let mut salt = [0u8; 16];
-    let mut nonce_bytes = [0u8; 12];
-    getrandom::getrandom(&mut salt).map_err(|e| format!("getrandom failed: {}", e))?;
-    getrandom::getrandom(&mut nonce_bytes).map_err(|e| format!("getrandom failed: {}", e))?;
-
-    // Derive AES key via HKDF
-    let info = format!("puzzlepod-ca-key-v1:{}", branch_id);
-    let hkdf = Hkdf::<Sha256>::new(Some(&salt), instance_secret);
-    let mut aes_key = zeroize::Zeroizing::new([0u8; 32]);
-    hkdf.expand(info.as_bytes(), &mut *aes_key)
-        .map_err(|e| format!("HKDF expand failed: {}", e))?;
-
-    // Build header
-    let mut header = Vec::with_capacity(35);
-    header.extend_from_slice(ACKF_MAGIC); // 4
-    header.extend_from_slice(&ACKF_VERSION.to_be_bytes()); // 2
-    header.push(0x01); // key source: instance_secret        // 1
-    header.extend_from_slice(&salt); // 16
-    header.extend_from_slice(&nonce_bytes); // 12
-
-    // Encrypt with AAD = header bytes (integrity-protects magic, version, key source,
-    // salt, and nonce against tampering — F4 hardening).
-    let cipher =
-        Aes256Gcm::new_from_slice(&*aes_key).map_err(|e| format!("AES key init: {}", e))?;
-    let nonce = Nonce::from_slice(&nonce_bytes);
-    let ciphertext = cipher
-        .encrypt(
-            nonce,
-            aes_gcm::aead::Payload {
-                msg: key_pair_bytes,
-                aad: &header,
-            },
-        )
-        .map_err(|e| format!("AES-GCM encrypt: {}", e))?;
-
-    let mut output = header;
-    output.extend_from_slice(&ciphertext);
-    Ok(output)
-}
-
-/// Decrypt a CA key pair from an ACKF-formatted file.
-pub fn decrypt_ca_key(
-    branch_id: &str,
-    data: &[u8],
-    instance_secret: &[u8; 32],
-) -> Result<zeroize::Zeroizing<Vec<u8>>, Box<dyn std::error::Error>> {
-    use aes_gcm::{aead::Aead, Aes256Gcm, KeyInit, Nonce};
-    use hkdf::Hkdf;
-    use sha2::Sha256;
-
-    if data.len() < 35 {
-        return Err("ACKF file too short".into());
-    }
-    if &data[0..4] != ACKF_MAGIC {
-        return Err("invalid ACKF magic".into());
-    }
-    let version = u16::from_be_bytes([data[4], data[5]]);
-    if version != ACKF_VERSION {
-        return Err(format!("unsupported ACKF version: {}", version).into());
-    }
-
-    let salt = &data[7..23];
-    let nonce_bytes = &data[23..35];
-    let ciphertext = &data[35..];
-
-    // Derive key
-    let info = format!("puzzlepod-ca-key-v1:{}", branch_id);
-    let hkdf = Hkdf::<Sha256>::new(Some(salt), instance_secret);
-    let mut aes_key = zeroize::Zeroizing::new([0u8; 32]);
-    hkdf.expand(info.as_bytes(), &mut *aes_key)
-        .map_err(|e| format!("HKDF expand failed: {}", e))?;
-
-    // Decrypt with AAD = header bytes (F4: verify header integrity).
-    let header = &data[0..35];
-    let cipher =
-        Aes256Gcm::new_from_slice(&*aes_key).map_err(|e| format!("AES key init: {}", e))?;
-    let nonce = Nonce::from_slice(nonce_bytes);
-    let plaintext = cipher
-        .decrypt(
-            nonce,
-            aes_gcm::aead::Payload {
-                msg: ciphertext,
-                aad: header,
-            },
-        )
-        .map_err(|e| format!("AES-GCM decrypt: {}", e))?;
-
-    Ok(zeroize::Zeroizing::new(plaintext))
 }
