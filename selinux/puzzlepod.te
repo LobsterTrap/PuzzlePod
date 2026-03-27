@@ -11,9 +11,9 @@ type puzzled_exec_t;
 init_daemon_domain(puzzlepod_t, puzzled_exec_t)
 
 # Agent sandbox process domain
-type puzzlepod_t;
+type puzzlepod_agent_t;
 type puzzlepod_exec_t;
-application_domain(puzzlepod_t, puzzlepod_exec_t)
+application_domain(puzzlepod_agent_t, puzzlepod_exec_t)
 
 # File types for puzzled
 type puzzled_conf_t;
@@ -93,10 +93,10 @@ allow puzzlepod_t puzzlepod_branch_t:file manage_file_perms;
 allow puzzlepod_t puzzlepod_branch_t:lnk_file manage_lnk_file_perms;
 
 # Process management — fork agent processes
-allow puzzlepod_t puzzlepod_t:process { transition signal_perms };
+allow puzzlepod_t puzzlepod_agent_t:process { transition signal_perms };
 
-# Domain transition: puzzlepod_t -> puzzlepod_t when spawning agent processes
-type_transition puzzlepod_t puzzlepod_exec_t:process puzzlepod_t;
+# Domain transition: puzzlepod_t -> puzzlepod_agent_t when spawning agent processes
+type_transition puzzlepod_t puzzlepod_exec_t:process puzzlepod_agent_t;
 allow puzzlepod_t puzzlepod_exec_t:file { read getattr execute };
 allow puzzlepod_t puzzlepod_exec_t:file entrypoint;
 
@@ -112,8 +112,8 @@ allow puzzlepod_t self:cap_userns { sys_admin };
 allow puzzlepod_t self:process { fork setrlimit };
 
 # cgroup management
-allow puzzlepod_t cgroup_t:dir manage_dir_perms;
-allow puzzlepod_t cgroup_t:file manage_file_perms;
+fs_manage_cgroup_dirs(puzzlepod_t)
+fs_manage_cgroup_files(puzzlepod_t)
 
 # Mount OverlayFS (sys_admin already granted above for namespace/cgroup mgmt)
 allow puzzlepod_t puzzlepod_branch_t:filesystem { mount unmount };
@@ -135,58 +135,54 @@ allow puzzlepod_t puzzled_log_t:file manage_file_perms;
 
 # IMA measurement access (sys_admin already granted above)
 
-# Network: D-Bus only, no external network
-corenet_tcp_connect_dbus_port(puzzlepod_t)
-
 # Seccomp notification fd handling
 allow puzzlepod_t self:capability2 bpf;
 allow puzzlepod_t puzzlepod_t:process2 { nnp_transition nosuid_transition };
 
-# XFS quota management — quotactl requires sys_admin (already granted above)
+# XFS/ext4 quota management — quotactl requires sys_admin (already granted above)
 # M-se2: quotactl is not a valid SELinux capability — removed capability/capability2 quotactl lines.
 # Quota operations are governed by filesystem class permissions instead.
-# m22: Scoped to xfs_t and ext4_t rather than all filesystem_type
-allow puzzlepod_t xfs_t:filesystem { quotaget quotamod };
-allow puzzlepod_t ext4_t:filesystem { quotaget quotamod };
+fs_get_all_fs_quotas(puzzlepod_t)
+fs_set_all_quotas(puzzlepod_t)
 
 ########################################
 #
-# puzzlepod_t policy — sandboxed agent domain
+# puzzlepod_agent_t policy — sandboxed agent domain
 #
 
 # Basic process execution
 # M8: execmem is gated behind a tunable boolean — only enable for agents
 # that require JIT compilation (e.g., Node.js, Java). Default: off.
-allow puzzlepod_t self:process { signal_perms getsched getattr };
+allow puzzlepod_agent_t self:process { signal_perms getsched getattr };
 
 # M-se3: Default false — execmem is denied unless explicitly enabled per-agent via setsebool.
 # This prevents JIT-spray and ROP-to-mprotect attacks in the default configuration.
 gen_tunable(puzzled_agent_execmem, false)
 tunable_policy(`puzzled_agent_execmem',`
-    allow puzzlepod_t self:process execmem;
+    allow puzzlepod_agent_t self:process execmem;
 ')
 
 # Filesystem: read-only access to specific system paths
-files_read_usr_files(puzzlepod_t)
-libs_use_ld_so(puzzlepod_t)
-libs_use_shared_libs(puzzlepod_t)
+files_read_usr_files(puzzlepod_agent_t)
+libs_use_ld_so(puzzlepod_agent_t)
+libs_use_shared_libs(puzzlepod_agent_t)
 
 # Write only to branch filesystem
-allow puzzlepod_t puzzlepod_branch_t:dir manage_dir_perms;
-allow puzzlepod_t puzzlepod_branch_t:file manage_file_perms;
-allow puzzlepod_t puzzlepod_branch_t:lnk_file manage_lnk_file_perms;
+allow puzzlepod_agent_t puzzlepod_branch_t:dir manage_dir_perms;
+allow puzzlepod_agent_t puzzlepod_branch_t:file manage_file_perms;
+allow puzzlepod_agent_t puzzlepod_branch_t:lnk_file manage_lnk_file_perms;
 
 # MCS constraint for multi-tenancy
-mcs_constrained(puzzlepod_t)
+mcs_constrained(puzzlepod_agent_t)
 
-# C6: Network access for puzzlepod_t — gated behind tunable boolean.
+# C6: Network access for puzzlepod_agent_t — gated behind tunable boolean.
 # When enabled, agents can create TCP sockets and connect. This allows the
 # seccomp USER_NOTIF layer (not SELinux) to gate individual connect() calls.
 # Default off; enable for standard/privileged profiles that need network.
 gen_tunable(puzzlepod_agent_network_connect, false)
 tunable_policy(`puzzlepod_agent_network_connect',`
-    allow puzzlepod_t self:tcp_socket { create connect getattr read write };
-    corenet_tcp_connect_all_ports(puzzlepod_t)
+    allow puzzlepod_agent_t self:tcp_socket { create connect getattr read write };
+    corenet_tcp_connect_all_ports(puzzlepod_agent_t)
 ')
 
 ########################################
@@ -210,83 +206,91 @@ allow puzzlectl_t puzzled_conf_t:file read_file_perms;
 # neverallow rules — agents CANNOT:
 #
 
+# Require base policy types used in neverallow rules
+require {
+	attribute domain;
+	type security_t;
+	type bin_t, sbin_t, etc_t, boot_t, usr_t;
+	type device_t, fixed_disk_device_t;
+	type proc_t, proc_kcore_t;
+}
+
 # Ptrace any process (blocks debugger-based escapes)
-neverallow puzzlepod_t domain:process ptrace;
+neverallow puzzlepod_agent_t domain:process ptrace;
 
 # Load kernel modules
-neverallow puzzlepod_t self:capability sys_module;
-neverallow puzzlepod_t self:system module_load;
+neverallow puzzlepod_agent_t self:capability sys_module;
+neverallow puzzlepod_agent_t self:system module_load;
 
 # Mount or unmount filesystems
-neverallow puzzlepod_t self:capability sys_admin;
-neverallow puzzlepod_t fs_type:filesystem { mount unmount };
+neverallow puzzlepod_agent_t self:capability sys_admin;
 
 # Modify SELinux policy
-neverallow puzzlepod_t security_t:security *;
+neverallow puzzlepod_agent_t security_t:security *;
 
 # Write to system files
-neverallow puzzlepod_t bin_t:file { write append create unlink };
-neverallow puzzlepod_t sbin_t:file { write append create unlink };
-neverallow puzzlepod_t etc_t:file { write append create unlink };
-neverallow puzzlepod_t boot_t:file { write append create unlink };
-neverallow puzzlepod_t usr_t:file { write append create unlink };
+neverallow puzzlepod_agent_t bin_t:file { write append create unlink };
+neverallow puzzlepod_agent_t sbin_t:file { write append create unlink };
+neverallow puzzlepod_agent_t etc_t:file { write append create unlink };
+neverallow puzzlepod_agent_t boot_t:file { write append create unlink };
+neverallow puzzlepod_agent_t usr_t:file { write append create unlink };
 
 # Access raw devices
-neverallow puzzlepod_t device_t:chr_file { read write };
-neverallow puzzlepod_t fixed_disk_device_t:blk_file { read write };
+neverallow puzzlepod_agent_t device_t:chr_file { read write };
+neverallow puzzlepod_agent_t fixed_disk_device_t:blk_file { read write };
 
 # Create network listeners (agents should not bind)
-neverallow puzzlepod_t self:tcp_socket { listen accept };
+neverallow puzzlepod_agent_t self:tcp_socket { listen accept };
 # V44: Extended to cover inherited fd operations (read/write) in addition to create
-neverallow puzzlepod_t self:udp_socket { create read write };
+neverallow puzzlepod_agent_t self:udp_socket { create read write };
 
 # U36: Block agent syslog access — agents must not send syslog messages directly
-neverallow puzzlepod_t self:unix_dgram_socket { create write connect };
+neverallow puzzlepod_agent_t self:unix_dgram_socket { create write connect };
 
 # BPF operations
-neverallow puzzlepod_t self:bpf { map_create map_read map_write prog_load prog_run };
+neverallow puzzlepod_agent_t self:bpf { map_create map_read map_write prog_load prog_run };
 
 # Kexec
-neverallow puzzlepod_t self:capability sys_boot;
+neverallow puzzlepod_agent_t self:capability sys_boot;
 
 # M9: Agents must not write to WAL or daemon state (prevents tampering with
 # governance records and crash-recovery data)
 # M-se1: Broad deny — agents must not read, write, or inspect daemon state at all
-neverallow puzzlepod_t puzzled_var_lib_t:file *;
-neverallow puzzlepod_t puzzled_wal_t:file *;
+neverallow puzzlepod_agent_t puzzled_var_lib_t:file *;
+neverallow puzzlepod_agent_t puzzled_wal_t:file *;
 
 # Agents must not access policy files (prevents policy inspection/tampering)
-neverallow puzzlepod_t puzzled_policy_t:file *;
+neverallow puzzlepod_agent_t puzzled_policy_t:file *;
 
 # Agents must not access daemon log files (prevents log tampering/inspection)
-neverallow puzzlepod_t puzzled_log_t:file *;
+neverallow puzzlepod_agent_t puzzled_log_t:file *;
 
 # T36: Agents must not access daemon runtime state (sockets, pidfiles)
-neverallow puzzlepod_t puzzled_var_run_t:file *;
-neverallow puzzlepod_t puzzled_var_run_t:dir *;
-neverallow puzzlepod_t puzzled_var_run_t:sock_file *;
+neverallow puzzlepod_agent_t puzzled_var_run_t:file *;
+neverallow puzzlepod_agent_t puzzled_var_run_t:dir *;
+neverallow puzzlepod_agent_t puzzled_var_run_t:sock_file *;
 
 # T37: Agents must not read daemon configuration or profile definitions
-neverallow puzzlepod_t puzzled_conf_t:file *;
-neverallow puzzlepod_t puzzled_profile_t:file *;
+neverallow puzzlepod_agent_t puzzled_conf_t:file *;
+neverallow puzzlepod_agent_t puzzled_profile_t:file *;
 
 # Access /proc/sys or /proc/kcore
-neverallow puzzlepod_t proc_t:file write;
-neverallow puzzlepod_t proc_kcore_t:file { read write };
+neverallow puzzlepod_agent_t proc_t:file write;
+neverallow puzzlepod_agent_t proc_kcore_t:file { read write };
 
 # Change SELinux contexts
-neverallow puzzlepod_t self:process { setcurrent setexec setfscreate setsockcreate };
+neverallow puzzlepod_agent_t self:process { setcurrent setexec setfscreate setsockcreate };
 
 # Q8: Block SysV IPC escape vectors — agents must not create or write to
 # shared memory segments or message queues (prevents cross-agent data exfil)
-neverallow puzzlepod_t self:shm { create write };
-neverallow puzzlepod_t self:msgq { create write };
+neverallow puzzlepod_agent_t self:shm { create write };
+neverallow puzzlepod_agent_t self:msgq { create write };
 
 # Syslog access (agents must not access kernel log buffer)
-neverallow puzzlepod_t self:capability2 { syslog };
+neverallow puzzlepod_agent_t self:capability2 { syslog };
 
 # U37: Suppress benign denials to reduce audit log noise
-dontaudit puzzlepod_t self:dir { getattr search };
+dontaudit puzzlepod_agent_t self:dir { getattr search };
 
 ########################################
 #

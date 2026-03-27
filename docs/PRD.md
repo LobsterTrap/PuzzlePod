@@ -652,7 +652,7 @@ The Branch Context is the unifying abstraction. It binds namespace isolation, cg
 - Container annotations (`--annotation`)
 - Bind mounts (`--mount type=bind`)
 - Custom seccomp profiles (`--security-opt seccomp=`)
-- SELinux labels (`--security-opt label=type:puzzlepod_t`)
+- SELinux labels (`--security-opt label=type:puzzlepod_agent_t`)
 
 **FR-POD-002:** Zero Podman source code changes SHALL be required.
 
@@ -673,8 +673,9 @@ The Branch Context is the unifying abstraction. It binds namespace isolation, cg
 
 **FR-SEL-001:** PuzzlePod SHALL provide a SELinux type enforcement module defining:
 - `puzzlepod_t` -- Daemon domain
+- `puzzlepod_agent_t` -- Sandboxed agent process domain
 - `puzzlepod_branch_t` -- Branch filesystem type
-- `neverallow` rules preventing agents from accessing system files, using ptrace, loading modules, or modifying SELinux policy
+- `neverallow` rules on `puzzlepod_agent_t` preventing agents from accessing system files, using ptrace, loading modules, or modifying SELinux policy
 
 #### 6.1.12 Audit and IMA
 
@@ -1161,7 +1162,7 @@ Each phase is independently valuable. An organization can stop at any phase and 
 | Agent profiles | restricted, standard, privileged (YAML) |
 | Podman integration | puzzle-podman wrapper, puzzle-hook, puzzle-init |
 | systemd integration | puzzled.service, puzzle@.service, puzzle.slice |
-| SELinux policy | puzzlepod_t, puzzlepod_branch_t type enforcement |
+| SELinux policy | puzzlepod_t, puzzlepod_agent_t, puzzlepod_branch_t type enforcement |
 | IMA integration | Ed25519 changeset signing |
 | Linux Audit | 16 typed audit events (2600-2615) |
 | fanotify | Behavioral monitoring with configurable triggers |

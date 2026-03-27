@@ -212,7 +212,7 @@ In the sandbox, Landlock blocks all writes outside the sandbox directory. In the
 | 5 | PID namespace | 3.8+ | Blocks `/proc/1/ns/*` access, process isolation | Yes (`unshare` + double-fork) |
 | 6 | Mount namespace | 2.4.19+ | Filesystem view isolation, `/proc` remount | Yes (`unshare` + `MS_REC\|MS_PRIVATE`) |
 | 7 | Network namespace | 2.6.29+ | Network isolation | **No** (puzzled only) |
-| 8 | SELinux | 2.6+ | Backup for all filesystem writes (`puzzlepod_t` domain) | No (system-wide) |
+| 8 | SELinux | 2.6+ | Backup for all filesystem writes (`puzzlepod_agent_t` domain) | No (system-wide) |
 | 9 | BPF LSM | 5.7+ | Exec counting, rate limiting | No (puzzled only) |
 
 ---

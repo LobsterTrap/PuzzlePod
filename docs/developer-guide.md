@@ -41,7 +41,7 @@ PuzzlePod is composed of eight Rust crates organized as a Cargo workspace, plus 
 | Governance policies | `policies/rules/` | OPA/Rego rules evaluated at commit time |
 | Agent profiles | `policies/profiles/` | 23 YAML-based per-agent access control and resource definitions |
 | Profile schema | `policies/schemas/` | JSON Schema for profile validation |
-| SELinux policy | `selinux/` | Type enforcement module (`puzzlepod_t`, `puzzlepod_branch_t`) |
+| SELinux policy | `selinux/` | Type enforcement module (`puzzlepod_t`, `puzzlepod_agent_t`, `puzzlepod_branch_t`) |
 | Podman integration | `podman/` | `puzzle-podman` wrapper script and OCI hooks for Podman-native mode |
 | systemd units | `systemd/` | `puzzled.service`, `puzzle@.service` template, `puzzle.slice` |
 | Configuration | `config/` | Example `puzzled.conf` |

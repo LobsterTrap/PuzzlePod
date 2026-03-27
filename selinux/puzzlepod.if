@@ -61,7 +61,7 @@ interface(`puzzle_initrc_domtrans',`
 #
 interface(`puzzlepod_admin',`
 	gen_require(`
-		type puzzlepod_t, puzzled_conf_t, puzzled_var_lib_t;
+		type puzzlepod_t, puzzlepod_agent_t, puzzled_conf_t, puzzled_var_lib_t;
 		type puzzled_wal_t, puzzlepod_branch_t;
 		type puzzlectl_t, puzzlectl_exec_t;
 	')
@@ -78,9 +78,11 @@ interface(`puzzlepod_admin',`
 	admin_pattern($1, puzzled_wal_t)
 	admin_pattern($1, puzzlepod_branch_t)
 
-	# Allow signaling puzzled
+	# Allow signaling puzzled and agents
 	allow $1 puzzlepod_t:process { ptrace signal_perms };
 	ps_process_pattern($1, puzzlepod_t)
+	allow $1 puzzlepod_agent_t:process { ptrace signal_perms };
+	ps_process_pattern($1, puzzlepod_agent_t)
 ')
 
 ########################################

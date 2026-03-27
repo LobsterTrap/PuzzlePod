@@ -263,7 +263,7 @@ PuzzlePod composes the following existing, unmodified kernel primitives into a p
 | **fanotify** | 2.6.37+ (FID: 5.1+) | Real-time file access monitoring + behavioral triggers. |
 | **Linux Audit** | 2.6+ | Security event logging for all governance actions. |
 | **IMA** | 2.6.30+ | Integrity measurement for changeset signing. Ed25519 manifest signatures. |
-| **SELinux** | 2.6+ | Mandatory label-based access control. `puzzlepod_t` domain for daemon and agents. |
+| **SELinux** | 2.6+ | Mandatory label-based access control. `puzzlepod_t` domain for daemon, `puzzlepod_agent_t` for agents. |
 
 **Minimum kernel requirement:** 6.7+ for Landlock ABI v4 (network restrictions). All features are upstream and available in RHEL 10+ and Fedora 42+ kernels.
 
@@ -308,7 +308,7 @@ puzzled (root / CAP_SYS_ADMIN)                 Agent process (unprivileged)
         |         (unprivileged, irrevocable)            |
         |      b. Installs seccomp-BPF filter           |
         |      c. PR_SET_NO_NEW_PRIVS                   |
-        |      d. SELinux transition -> puzzlepod_t       |
+        |      d. SELinux transition -> puzzlepod_agent_t  |
         |      e. Drops all capabilities                |
         |      f. execve() agent binary                 |
         |                                               |
@@ -701,7 +701,7 @@ Agent file/exec/network request
          v
   +--------------+     Deny     +---------+
   | SELinux      |--------------|  EACCES |  Layer 2: Label-based MAC
-  | (kernel,     |              +---------+  (system-wide, puzzlepod_t domain)
+  | (kernel,     |              +---------+  (system-wide, puzzlepod_agent_t domain)
   |  system-wide)|
   +------+-------+
          | Allow
@@ -832,7 +832,7 @@ Every escape vector is blocked by at least two independent mechanisms:
 | 3 | **Mount namespace** (2.4.19+) | Filesystem view isolation | puzzled (`clone3`) / Podman | **Yes** |
 | 4 | **Network namespace** (2.6.29+) | Network isolation | puzzled (`setns`) / Podman | **Yes** |
 | 5 | **cgroups v2** (4.5+) | CPU, memory, I/O, PID limits | puzzled / Podman | **Yes** |
-| 6 | **SELinux** (2.6+) | Label-based MAC (`puzzlepod_t` domain) | puzzled / Podman | **Yes** |
+| 6 | **SELinux** (2.6+) | Label-based MAC (`puzzlepod_agent_t` domain) | puzzled / Podman | **Yes** |
 | 7 | **BPF LSM** (5.7+) | Programmable per-cgroup hooks | puzzled (via OCI hook) | **Yes** |
 | 8 | **User namespace** (3.8+) | UID mapping (rootless mode) | Podman | **Yes** |
 
@@ -893,7 +893,7 @@ puzzled (runs as root or user)
 - CLI override: `puzzled --config <path>`
 - Auto-detection: `DaemonConfig::load_or_default()` checks system path first, then user config for non-root users, then falls back to defaults
 
-**Hardening:** Minimal capabilities, SELinux-confined (`puzzlepod_t`), seccomp-BPF (configurable per-profile), no external network access.
+**Hardening:** Minimal capabilities, SELinux-confined (`puzzlepod_agent_t`), seccomp-BPF (configurable per-profile), no external network access.
 
 **Fail-closed behavior:** If puzzled crashes during governance evaluation, pending commits are rolled back on restart. Landlock restrictions on agent processes survive (kernel-enforced, independent). systemd restarts puzzled; it re-discovers active branches from `/var/lib/puzzled/branches/`.
 
@@ -1021,7 +1021,7 @@ Zero Podman source code changes. All integration via documented, stable extensio
 | Container annotations (`--annotation`) | `org.lobstertrap.puzzlepod.branch=ID` carries branch identity | Implemented |
 | Bind mounts (`--mount type=bind`) | Branch merged dir at `/workspace` | Implemented |
 | Custom seccomp profile (`--security-opt seccomp=`) | OCI profile with `SCMP_ACT_NOTIFY` + `listenerPath` | **Proposed** |
-| SELinux labels (`--security-opt label=type:puzzlepod_t`) | SELinux type enforcement | **Proposed** |
+| SELinux labels (`--security-opt label=type:puzzlepod_agent_t`) | SELinux type enforcement | **Proposed** |
 | crun `listenerPath` | crun sends seccomp notification fd to puzzled via Unix socket | **Proposed** |
 
 **puzzle-init (proposed):** Static binary bind-mounted into every governed container, running as PID 1 before the agent process. It applies Landlock rules, sets up nftables DNAT for transparent proxy, stacks a second seccomp filter (blocking AF_NETLINK), drops all capabilities, updates CA trust store, then execs the real command. ~500 lines, ~15 KB additional binary size.
@@ -1102,8 +1102,8 @@ policy_module(puzzlepod, 1.0.0)
 # Type declarations
 type puzzlepod_t;              # Daemon domain
 type puzzled_exec_t;           # Daemon executable type
-type puzzlepod_t;              # Agent process domain
-type puzzlepod_exec_t;             # Agent executable type
+type puzzlepod_agent_t;        # Agent sandbox domain
+type puzzlepod_exec_t;         # Agent executable type
 type puzzlepod_branch_t;       # Branch filesystem type
 type puzzled_var_lib_t;        # Governance data type
 type puzzled_policy_t;         # Policy file type
@@ -1112,21 +1112,21 @@ type puzzled_log_t;            # Log file type
 # Daemon policy
 allow puzzlepod_t self:capability { sys_admin dac_override audit_write
                                     setuid setgid net_admin };
-allow puzzlepod_t puzzlepod_t:process { transition signal sigkill };
-type_transition puzzlepod_t puzzlepod_exec_t:process puzzlepod_t;
+allow puzzlepod_t puzzlepod_agent_t:process { transition signal sigkill };
+type_transition puzzlepod_t puzzlepod_exec_t:process puzzlepod_agent_t;
 
 # Agent policy
-allow puzzlepod_t puzzlepod_branch_t:dir { read write search add_name remove_name };
-allow puzzlepod_t puzzlepod_branch_t:file { read write create unlink rename };
+allow puzzlepod_agent_t puzzlepod_branch_t:dir { read write search add_name remove_name };
+allow puzzlepod_agent_t puzzlepod_branch_t:file { read write create unlink rename };
 
-# Neverallow rules
-neverallow puzzlepod_t puzzled_var_lib_t:file *;
-neverallow puzzlepod_t puzzled_policy_t:file *;
-neverallow puzzlepod_t etc_t:file { write append };
-neverallow puzzlepod_t usr_t:file { write append };
-neverallow puzzlepod_t domain:process ptrace;
-neverallow puzzlepod_t self:capability sys_module;
-neverallow puzzlepod_t security_t:security *;
+# Neverallow rules (agent sandbox restrictions)
+neverallow puzzlepod_agent_t puzzled_var_lib_t:file *;
+neverallow puzzlepod_agent_t puzzled_policy_t:file *;
+neverallow puzzlepod_agent_t etc_t:file { write append };
+neverallow puzzlepod_agent_t usr_t:file { write append };
+neverallow puzzlepod_agent_t domain:process ptrace;
+neverallow puzzlepod_agent_t self:capability sys_module;
+neverallow puzzlepod_agent_t security_t:security *;
 
 # File contexts
 # /var/lib/puzzled(/.*)?              puzzled_var_lib_t

@@ -303,7 +303,7 @@ The `puzzled-selinux` package installs a type enforcement module defining the fo
 | Domain | Description |
 |---|---|
 | `puzzlepod_t` | Daemon domain for the `puzzled` process |
-| `puzzlepod_t` | Domain for sandboxed agent processes |
+| `puzzlepod_agent_t` | Domain for sandboxed agent processes |
 | `puzzlepod_branch_t` | Filesystem type for branch data |
 
 ### Installation and Activation
@@ -321,7 +321,7 @@ ps -eZ | grep puzzled
 
 ### Key neverallow Rules
 
-The SELinux policy enforces the following restrictions on agent processes (`puzzlepod_t`):
+The SELinux policy enforces the following restrictions on agent processes (`puzzlepod_agent_t`):
 
 - Cannot access system configuration files outside the branch
 - Cannot use `ptrace` on any process
@@ -764,7 +764,7 @@ enforcement_mode: full
 ```
 
 - All Phase 3 features plus:
-- SELinux `puzzlepod_t` domain transition enforced
+- SELinux `puzzlepod_agent_t` domain transition enforced
 - BPF LSM exec counting and rate limiting active
 - fanotify behavioral triggers (mass deletion detection, credential access alerts)
 - Network gating via HTTP proxy (Gated mode)
