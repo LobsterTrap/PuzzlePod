@@ -1,0 +1,2 @@
+window.ALL_CRATES = ["puzzle_hook","puzzle_init","puzzle_phase2_demo","puzzle_proxy","puzzle_sandbox_demo","puzzle_sim_worker","puzzlectl","puzzled","puzzled_types"];
+//{"start":21,"fragment_lengths":[13,14,21,15,22,20,12,10,16]}

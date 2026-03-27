@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["MAX_JOURNAL_BYTES","MAX_JOURNAL_ENTRIES","SAFE_REPLAY_METHODS"],"fn":["replay_entry"],"mod":["base64_bytes"],"struct":["JournalEntry","JournalRateLimiter","NetworkJournal"]};

@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["ALLOW_SYSCALLS","DENY_SYSCALLS"]};

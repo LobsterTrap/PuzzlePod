@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["MAX_MERKLE_LEAVES"],"fn":["is_governance_significant","verify_consistency","verify_consistency_inner","verify_inclusion"],"struct":["MerkleTree"]};

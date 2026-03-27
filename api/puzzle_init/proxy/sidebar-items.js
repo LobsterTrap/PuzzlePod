@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["PROXY_CONFIG_PATH"],"fn":["apply_nft_script","default_gateway","default_ports","drop_all_capabilities","find_nft_binary","load_proxy_config","setup_ca_trust","setup_nftables_dnat","stack_seccomp_netlink_block","validate_proxy_config","verify_nft_rules"],"struct":["ProxyConfig"]};

@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["ESCALATE_TO_EXTENDED","ESCALATE_TO_STANDARD","MAX_TRACKED_AGENTS"],"fn":["saturating_f64_to_u32","saturating_f64_to_u64"],"struct":["AgentBudget","BudgetManager","TierMultipliers"]};

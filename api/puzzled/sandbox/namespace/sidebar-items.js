@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["CLONE_INTO_CGROUP","CLONE_NEWCGROUP","CLONE_NEWUTS"],"fn":["allocate_child_stack","deallocate_child_stack","open_cgroup_fd"],"struct":["NamespaceBuilder"]};

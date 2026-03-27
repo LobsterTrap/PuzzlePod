@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["MAX_MODIFIED_FILES","RESERVATION_TIMEOUT"],"struct":["CommittedBranchRecord","ConflictDetector"]};

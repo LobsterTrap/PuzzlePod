@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["DAEMON_DENY_SYSCALLS"],"fn":["apply_daemon_hardening","notify_id_valid"],"mod":["filter","notif","procmem","validate"],"struct":["SeccompBuilder"]};

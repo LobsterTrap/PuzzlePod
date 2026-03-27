@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["apply_landlock","to_landlock_abi"]};

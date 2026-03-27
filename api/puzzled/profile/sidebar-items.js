@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["VALID_LINUX_CAPS"],"fn":["domain_matches_pattern","validate_credential_specs","validate_profile"],"struct":["ProfileLoader"]};

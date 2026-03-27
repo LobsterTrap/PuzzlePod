@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["MAX_SOCKETPAIR_MSG_LEN","SENSITIVE_PATHS"],"fn":["mask_sensitive_paths","read_exact_raw","recv_fd","send_fd","send_seccomp_ack","write_all_raw"],"mod":["bpf_lsm","capabilities","cgroup","fanotify","landlock","namespace","network","overlay","quota","seccomp","selinux"],"struct":["SandboxBuilder","SandboxCleanup","SandboxHandle"]};

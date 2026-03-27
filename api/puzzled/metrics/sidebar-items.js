@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["MAX_PROFILE_LABEL_LEN"],"fn":["encode_metrics","sanitize_branch_label","sanitize_profile_label","serve_metrics"],"struct":["BranchLabels","Metrics","OutcomeLabels"]};

@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["cap_name_to_number","clear_effective_and_permitted_sets","drop_bounding_set","drop_capabilities","switch_credentials"]};

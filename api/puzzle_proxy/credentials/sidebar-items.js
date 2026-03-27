@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["HKDF_INFO"],"enum":["CredentialError","CredentialType","InjectionMethod"],"fn":["domain_matches","generate_phantom_token","hkdf_sha256"],"struct":["CredentialEntry","CredentialMapping","CredentialMetadata","CredentialStore","PhantomToken","PhantomTokenManager","ResolvedCredential","StoredCredential"]};

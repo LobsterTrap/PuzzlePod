@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["outcome_matches"],"struct":["BatchReport","BatchSummary","ScenarioResult"]};

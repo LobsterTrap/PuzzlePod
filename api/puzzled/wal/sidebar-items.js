@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["WalEntry","WalOperation"],"struct":["WalBackup","WalWriter","WriteAheadLog"]};

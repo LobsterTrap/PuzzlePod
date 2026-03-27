@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["MAX_ENTROPY_MATCHES","PER_RULE_TIMEOUT"],"enum":["CompiledMatcher","DlpAction","DlpApplyTo","DlpPattern","DlpSeverity","OversizedAction"],"fn":["apply_redactions","most_severe_action","sha256_hex","shannon_entropy"],"struct":["CompiledDlpRule","DlpEngine","DlpInspectionResult","DlpMatch","DlpRule","DlpRuleSet"]};

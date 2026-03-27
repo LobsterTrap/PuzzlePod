@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["is_bind_allowed_by_policy","is_connect_allowed_by_policy","is_exec_allowed","normalize_path_components","path_matches_exec_allowlist","path_matches_exec_denylist","validate_bind","validate_connect","validate_execve","validate_execve_with_path"]};

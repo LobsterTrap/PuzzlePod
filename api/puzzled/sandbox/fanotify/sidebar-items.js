@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["CREDENTIAL_PATTERNS","MAX_TOUCHED_FILES"],"fn":["is_credential_path"],"struct":["BehavioralCounters","FanotifyEventMetadata","FanotifyMonitor"]};

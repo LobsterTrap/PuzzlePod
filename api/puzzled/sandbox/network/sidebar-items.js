@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["create_named_netns","delete_named_netns","run_ip_cmd","run_netns_ip","run_netns_nft","validate_netns_name"],"struct":["NetworkSetup"]};

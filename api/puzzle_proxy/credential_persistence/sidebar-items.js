@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["MAPPING_VERSION"],"struct":["CredentialMappingFile","PersistedMapping"]};

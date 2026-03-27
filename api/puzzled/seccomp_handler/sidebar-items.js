@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["EPOLL_TIMEOUT_MS","SECCOMP_IOCTL_NOTIF_ADDFD"],"enum":["SeccompCommand"],"fn":["inject_fd_for_execve_with_path","poll_loop"],"struct":["BranchEntry","CredentialProxyContext","SeccompNotifAddfd","SeccompNotifHandler"]};

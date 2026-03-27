@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["MAX_DEPTH","OVERLAY_REDIRECT_XATTR"],"fn":["read_mtime"],"struct":["DiffEngine"]};

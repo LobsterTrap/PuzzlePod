@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["SecureMemoryError"],"fn":["page_size"],"struct":["CredentialManager","CredentialSlot","SecureCredentialStore","SecureRef","SecureRegion"]};
