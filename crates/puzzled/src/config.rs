@@ -1763,6 +1763,7 @@ pub fn load_instance_secret_machine_id_fallback() -> Result<Zeroizing<[u8; 32]>>
 }
 
 #[cfg(test)]
+#[allow(clippy::field_reassign_with_default)]
 mod tests {
     use super::*;
     use std::io::Write;
@@ -2367,7 +2368,7 @@ max_branches: 0
         // Generate: write 32 random bytes
         let mut secret = [0u8; 32];
         getrandom::getrandom(&mut secret).unwrap();
-        std::fs::write(&secret_path, &secret).unwrap();
+        std::fs::write(&secret_path, secret).unwrap();
 
         // Read back and verify
         let loaded = std::fs::read(&secret_path).unwrap();
@@ -2382,7 +2383,7 @@ max_branches: 0
         let secret_path = tmp.path().join("instance_secret");
 
         // Write a secret that's too short
-        std::fs::write(&secret_path, &[0u8; 16]).unwrap();
+        std::fs::write(&secret_path, [0u8; 16]).unwrap();
 
         let bytes = std::fs::read(&secret_path).unwrap();
         assert!(bytes.len() < 32, "should be too short");
