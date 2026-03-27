@@ -164,7 +164,7 @@
         <mxCell id="agent-box" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;verticalAlign=top;arcSize=8;" vertex="1" parent="1">
           <mxGeometry x="1100" y="110" width="440" height="390" as="geometry" />
         </mxCell>
-        <mxCell id="agent-title" value="&lt;b&gt;Agent Process&lt;/b&gt; (sandboxed)&lt;br&gt;&lt;font size=&quot;1&quot;&gt;SELinux: puzzlepod_t | PID NS | Mount NS | Net NS&lt;/font&gt;" style="text;html=1;align=center;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;fontSize=12;" vertex="1" parent="1">
+        <mxCell id="agent-title" value="&lt;b&gt;Agent Process&lt;/b&gt; (sandboxed)&lt;br&gt;&lt;font size=&quot;1&quot;&gt;SELinux: puzzlepod_agent_t | PID NS | Mount NS | Net NS&lt;/font&gt;" style="text;html=1;align=center;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;fontSize=12;" vertex="1" parent="1">
           <mxGeometry x="1160" y="115" width="310" height="40" as="geometry" />
         </mxCell>
 
@@ -186,7 +186,7 @@
         <mxCell id="agent-xfs" value="&lt;b&gt;XFS Project Quotas&lt;/b&gt;&lt;br&gt;Storage + inode limits on upper" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=10;" vertex="1" parent="1">
           <mxGeometry x="1120" y="325" width="190" height="45" as="geometry" />
         </mxCell>
-        <mxCell id="agent-selinux" value="&lt;b&gt;SELinux&lt;/b&gt;&lt;br&gt;puzzlepod_t → neverallow rules" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=10;" vertex="1" parent="1">
+        <mxCell id="agent-selinux" value="&lt;b&gt;SELinux&lt;/b&gt;&lt;br&gt;puzzlepod_agent_t → neverallow rules" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=10;" vertex="1" parent="1">
           <mxGeometry x="1330" y="325" width="190" height="45" as="geometry" />
         </mxCell>
         <mxCell id="agent-fanotify" value="&lt;b&gt;fanotify&lt;/b&gt;&lt;br&gt;Async monitoring (zero agent impact)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=10;" vertex="1" parent="1">

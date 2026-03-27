@@ -2396,8 +2396,12 @@ max_branches: 0
     /// §3.4 G14: Test machine-id fallback produces deterministic output.
     #[test]
     fn test_machine_id_fallback_deterministic() {
-        // Only run on systems with /etc/machine-id
-        if !Path::new("/etc/machine-id").exists() {
+        // Only run on systems with a valid /etc/machine-id (>= 32 chars).
+        // Containers often have an empty or truncated machine-id.
+        let Ok(contents) = std::fs::read_to_string("/etc/machine-id") else {
+            return;
+        };
+        if contents.trim().len() < 32 {
             return;
         }
         let key1 = load_instance_secret_machine_id_fallback().unwrap();

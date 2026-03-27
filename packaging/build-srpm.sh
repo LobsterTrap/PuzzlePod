@@ -35,10 +35,9 @@ if ! git rev-parse --git-dir >/dev/null 2>&1; then
     exit 1
 fi
 
-# Check for uncommitted changes
+# Note uncommitted changes
 if ! git diff-index --quiet HEAD -- 2>/dev/null; then
-    echo "WARNING: Uncommitted changes detected. SRPM will use HEAD, not working tree." >&2
-    echo "         Consider committing first." >&2
+    echo "NOTE: Uncommitted changes detected. Tarball will include working tree contents." >&2
     echo ""
 fi
 
@@ -55,12 +54,19 @@ echo "Date:      $COMMITDATE"
 echo "Mode:      $([ $RELEASE_MODE -eq 1 ] && echo 'release' || echo 'git snapshot')"
 echo ""
 
-# Create source tarball from git
+# Create source tarball from working tree (includes uncommitted changes)
 SOURCE_NAME="puzzlepod-${COMMIT}"
 TARBALL="${SOURCE_NAME}.tar.gz"
 
 echo "--- Creating source tarball ---"
-git archive --prefix="${SOURCE_NAME}/" HEAD | gzip > "/tmp/${TARBALL}"
+tar -czf "/tmp/${TARBALL}" \
+    --transform "s,^\./,${SOURCE_NAME}/," \
+    --transform "s,^\.,${SOURCE_NAME}," \
+    --exclude='./.git' \
+    --exclude='./target' \
+    --exclude='./packaging/srpms' \
+    --exclude='./packaging/rpms' \
+    -C "$REPO_ROOT" .
 echo "Created /tmp/${TARBALL}"
 
 # Set up rpmbuild tree
@@ -74,30 +80,30 @@ mkdir -p "$SRPM_DIR"
 SPECS=(
     puzzled.spec
     puzzlectl.spec
-    puzzled-selinux.spec
+    puzzlepod-selinux.spec
     puzzled-profiles.spec
     puzzled-policies.spec
     puzzle-podman.spec
     puzzlepod.spec
 )
 
-DEFINES=()
-if [[ $RELEASE_MODE -eq 0 ]]; then
-    DEFINES=(
-        --define "commit $COMMIT"
-        --define "shortcommit $SHORTCOMMIT"
-        --define "commitdate $COMMITDATE"
-    )
-fi
-
 for spec in "${SPECS[@]}"; do
     echo ""
     echo "--- Building SRPM: $spec ---"
-    cp "$SCRIPT_DIR/$spec" "$RPMBUILD_DIR/SPECS/"
+
+    if [[ $RELEASE_MODE -eq 0 ]]; then
+        # Inject %global macros directly into the spec so they survive
+        # SRPM extraction (--define flags are not stored in the SRPM).
+        sed -e "1i %global commit $COMMIT" \
+            -e "1i %global shortcommit $SHORTCOMMIT" \
+            -e "1i %global commitdate $COMMITDATE" \
+            "$SCRIPT_DIR/$spec" > "$RPMBUILD_DIR/SPECS/$spec"
+    else
+        cp "$SCRIPT_DIR/$spec" "$RPMBUILD_DIR/SPECS/"
+    fi
 
     rpmbuild -bs \
         --define "_topdir $RPMBUILD_DIR" \
-        "${DEFINES[@]}" \
         "$RPMBUILD_DIR/SPECS/$spec"
 done
 
@@ -112,6 +118,16 @@ echo "To submit to internal COPR:"
 echo "  for srpm in $SRPM_DIR/*.src.rpm; do"
 echo "    copr-cli build puzzlepod \"\$srpm\""
 echo "  done"
+
+# Preserve source tarball for CI artifact upload
+TARBALL_DIR="$SCRIPT_DIR/source-tarball"
+mkdir -p "$TARBALL_DIR"
+cp "/tmp/${TARBALL}" "$TARBALL_DIR/" || {
+    echo "ERROR: Failed to preserve source tarball" >&2
+    exit 1
+}
+echo ""
+echo "Source tarball: $TARBALL_DIR/${TARBALL}"
 
 # Cleanup
 rm -rf "$RPMBUILD_DIR" "/tmp/${TARBALL}"

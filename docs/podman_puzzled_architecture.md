@@ -166,7 +166,7 @@ The governance model — the unique value of PuzzlePod — is entirely preserved
 | **Bind mounts** | `--mount type=bind,src=...,dst=...` | Branch merged directory mounted at `/workspace` |
 | **Custom seccomp profile** | `--security-opt seccomp=profile.json` | OCI seccomp profile with `SCMP_ACT_NOTIFY` for execve/connect and `listenerPath` for puzzled |
 | **Environment variables** | `--env KEY=VALUE` | `PUZZLEPOD_BRANCH_ID`, `PUZZLEPOD_WORKSPACE` |
-| **SELinux labels** | `--security-opt label=type:puzzlepod_t` | SELinux type enforcement for agent domain |
+| **SELinux labels** | `--security-opt label=type:puzzlepod_agent_t` | SELinux type enforcement for agent domain |
 | **Podman events** | `podman events --filter` | Optional: subscribe to container lifecycle events |
 
 ### 3.3 crun Extension Points Used (No Code Changes Required)
@@ -243,7 +243,7 @@ The governance model — the unique value of PuzzlePod — is entirely preserved
         --label org.lobstertrap.puzzlepod.profile=standard \
         --env PUZZLEPOD_BRANCH_ID=$BRANCH_ID \
         --env PUZZLEPOD_WORKSPACE=/workspace \
-        --security-opt label=type:puzzlepod_t \
+        --security-opt label=type:puzzlepod_agent_t \
         python:3.12 ./agent.py
       (puzzle-init shim applies Landlock via landlock_restrict_self(),
        then exec's the real command — ./agent.py)
@@ -530,7 +530,7 @@ puzzle-podman run --profile=standard python:3.12 ./agent.py
       --mount type=bind,src=$LANDLOCK_RULES,dst=/run/puzzlepod/landlock.json,ro \
       --entrypoint /puzzle-init \
       --security-opt seccomp=$SECCOMP_PROFILE \
-      --security-opt label=type:puzzlepod_t \
+      --security-opt label=type:puzzlepod_agent_t \
       --annotation run.oci.handler=puzzlepod \
       --annotation org.lobstertrap.puzzlepod.branch=$BRANCH_ID \
       --label org.lobstertrap.puzzlepod.profile=standard \
@@ -573,7 +573,7 @@ podman run \
     --mount "type=bind,src=$LANDLOCK_RULES,dst=/run/puzzlepod/landlock.json,ro" \
     --entrypoint /puzzle-init \
     --security-opt "seccomp=$SECCOMP_PROFILE" \
-    --security-opt "label=type:puzzlepod_t" \
+    --security-opt "label=type:puzzlepod_agent_t" \
     --annotation "run.oci.handler=puzzlepod" \
     --annotation "org.lobstertrap.puzzlepod.branch=$BRANCH_ID" \
     --label "org.lobstertrap.puzzlepod.profile=standard" \
@@ -859,7 +859,7 @@ The following code is removed or deprecated:
 | `sandbox/network.rs` (namespace) | Network namespace creation, `ip netns add`, veth pair setup | ~755 | Podman/netavark |
 | `sandbox/capabilities.rs` | Linux capability dropping for agent processes | ~592 | Podman (via `--cap-drop`, `--cap-add`) |
 | `sandbox/quota.rs` | XFS project quota setup on OverlayFS upper layer | ~364 | Partially dropped — use `podman --storage-opt size=` for rootless; keep quota logic for root mode branches |
-| `sandbox/selinux.rs` | SELinux context setup for agent domain | ~161 | Podman (via `--security-opt label=type:puzzlepod_t`) |
+| `sandbox/selinux.rs` | SELinux context setup for agent domain | ~161 | Podman (via `--security-opt label=type:puzzlepod_agent_t`) |
 
 **Estimated deletion: ~3,200 lines** (of ~9,200 sandbox lines; Landlock, BPF LSM, fanotify, seccomp modules are retained). See Section 15.2 for the detailed per-file breakdown.
 
@@ -1416,7 +1416,7 @@ The interaction between three deployment modes (full, static-only, rootless) aff
 | **execve allowlist enforcement** | seccomp USER_NOTIF | BPF LSM exec guard only (no per-path gating) | seccomp USER_NOTIF (when enabled; disable with `--no-seccomp-notif` reduces to static deny only) |
 | **Namespaces** (PID/mount/net/IPC/UTS) | Podman/crun | Podman/crun | Podman/crun (inside user namespace) |
 | **cgroups v2** | Podman | Podman | Podman (delegated subtree) |
-| **SELinux** | Active (`puzzlepod_t`) | Active (`puzzlepod_t`) | Active (`puzzlepod_t`) |
+| **SELinux** | Active (`puzzlepod_agent_t`) | Active (`puzzlepod_agent_t`) | Active (`puzzlepod_agent_t`) |
 | **fanotify behavioral monitoring** | Full (`FAN_REPORT_FID`) | Full (`FAN_REPORT_FID`) | **Partial** (path-based only; mass deletion detection unavailable) |
 | **OPA policy at commit** | Active | Active | Active |
 
@@ -1812,7 +1812,7 @@ SecurityOpt=seccomp=/var/lib/puzzled/branches/code-review/seccomp.json
 Mount=type=bind,src=/var/lib/puzzled/branches/code-review/merged,dst=/workspace
 Mount=type=bind,src=/usr/libexec/puzzle-init,dst=/puzzle-init,ro
 Mount=type=bind,src=/var/lib/puzzled/branches/code-review/landlock.json,dst=/run/puzzlepod/landlock.json,ro
-SecurityLabelType=puzzlepod_t
+SecurityLabelType=puzzlepod_agent_t
 Environment=PUZZLEPOD_BRANCH_ID=code-review
 Environment=PUZZLEPOD_WORKSPACE=/workspace
 
@@ -1903,7 +1903,7 @@ The podman-native architecture preserves all defense-in-depth layers from the or
 | 4 | Mount namespace | podman/crun | Kernel | **Yes** |
 | 5 | Network namespace | podman/crun | Kernel | **Yes** |
 | 6 | cgroups v2 | podman | Kernel | **Yes** |
-| 7 | SELinux (`puzzlepod_t`) | podman (`--security-opt label=type:puzzlepod_t`) | Kernel | **Yes** |
+| 7 | SELinux (`puzzlepod_agent_t`) | podman (`--security-opt label=type:puzzlepod_agent_t`) | Kernel | **Yes** |
 | 8 | BPF LSM | puzzled (via hook) | Kernel | **Yes** — attached to cgroup |
 | 9 | User namespace | podman (rootless) | Kernel | **Yes** |
 
@@ -2257,7 +2257,7 @@ async function launchGovernedAgent(image, profile, basePath, command) {
         "--mount", `type=bind,src=${landlockPath},dst=/run/puzzlepod/landlock.json,ro`,
         "--entrypoint", "/puzzle-init",
         "--security-opt", `seccomp=${seccompPath}`,
-        "--security-opt", "label=type:puzzlepod_t",
+        "--security-opt", "label=type:puzzlepod_agent_t",
         "--annotation", "run.oci.handler=puzzlepod",
         "--annotation", `org.lobstertrap.puzzlepod.branch=${branchId}`,
         "--label", `org.lobstertrap.puzzlepod.profile=${profile}`,

@@ -98,7 +98,7 @@
         <!-- Layer 6: SELinux                                    -->
         <!-- ═══════════════════════════════════════════════════ -->
 
-        <mxCell id="layer6-box" value="&lt;b&gt;SELinux&lt;/b&gt; (kernel 2.6+)&lt;br&gt;&lt;br&gt;• puzzlepod_t domain (type enforcement)&lt;br&gt;• neverallow: ptrace, module_load,&lt;br&gt;  SELinux policy modification&lt;br&gt;• MCS labels for multi-tenancy&lt;br&gt;• Survives puzzled crash: &lt;b&gt;YES&lt;/b&gt;" style="rounded=1;whiteSpace=wrap;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=10;" vertex="1" parent="1">
+        <mxCell id="layer6-box" value="&lt;b&gt;SELinux&lt;/b&gt; (kernel 2.6+)&lt;br&gt;&lt;br&gt;• puzzlepod_agent_t domain (type enforcement)&lt;br&gt;• neverallow: ptrace, module_load,&lt;br&gt;  SELinux policy modification&lt;br&gt;• MCS labels for multi-tenancy&lt;br&gt;• Survives puzzled crash: &lt;b&gt;YES&lt;/b&gt;" style="rounded=1;whiteSpace=wrap;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=10;" vertex="1" parent="1">
           <mxGeometry x="40" y="660" width="280" height="110" as="geometry"/>
         </mxCell>
         <mxCell id="layer6-arrow" style="rounded=1;strokeColor=#82b366;dashed=1;" edge="1" parent="1" source="layer6-box" target="layer0">

@@ -20,6 +20,7 @@ ExclusiveArch:  x86_64 aarch64
 
 BuildRequires:  rust-packaging
 BuildRequires:  cargo >= 1.75
+BuildRequires:  git-core
 BuildRequires:  dbus-devel
 
 Requires:       dbus
@@ -41,6 +42,8 @@ credential management, and audit log viewer.
 
 %prep
 %autosetup -n %{source_name}
+# regorus build.rs requires git rev-parse HEAD (opa-runtime feature)
+git init -q && git add -A && git -c user.name=build -c user.email=build@rpm commit -q -m "rpm build" --allow-empty
 
 %build
 cargo build --release --bin puzzlectl

@@ -33,7 +33,7 @@ PuzzlePod implements eight independent enforcement layers. Each layer is enforce
 | 3 | Mount namespace | 2.4.19+ | Filesystem view isolation; OverlayFS branch containment | Yes -- namespace persists with process |
 | 4 | Network namespace | 2.6.29+ | Network isolation; nftables per-agent filtering | Yes -- namespace persists with process |
 | 5 | cgroups v2 | 4.5+ | Resource limits: memory, CPU, I/O, PIDs | Yes -- cgroup persists independently |
-| 6 | SELinux | 2.6+ | Mandatory access control; `puzzlepod_t` domain with neverallow rules | Yes -- kernel-enforced MAC |
+| 6 | SELinux | 2.6+ | Mandatory access control; `puzzlepod_agent_t` domain with neverallow rules | Yes -- kernel-enforced MAC |
 | 7 | BPF LSM | 5.7+ | Programmable per-cgroup hooks: exec counting, rate limiting | Yes -- BPF programs persist in kernel |
 
 ### Layer Independence
