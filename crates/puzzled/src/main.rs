@@ -1,10 +1,11 @@
+// SPDX-License-Identifier: Apache-2.0
 use std::sync::Arc;
 
+use anyhow::Result;
 use puzzled::{
     audit, audit_store, branch, budget, config, conflict, dbus, ima, policy, profile,
     seccomp_handler, wal,
 };
-use anyhow::Result;
 use tracing_subscriber::EnvFilter;
 
 #[cfg(unix)]
@@ -335,8 +336,10 @@ async fn main() -> Result<()> {
                     config::CredentialBackendConfig::Local { store_path } => store_path.clone(),
                     _ => std::path::PathBuf::from("/etc/puzzled/credentials/store.enc"),
                 };
-                match puzzle_proxy::credentials::CredentialStore::new(store_path, &signing_key_bytes)
-                {
+                match puzzle_proxy::credentials::CredentialStore::new(
+                    store_path,
+                    &signing_key_bytes,
+                ) {
                     Ok(store) => {
                         let cred_count = store.list().len();
                         let store = std::sync::Arc::new(tokio::sync::RwLock::new(store));
@@ -347,8 +350,9 @@ async fn main() -> Result<()> {
                         );
                         // §3.4 T3.2: Create mmap-backed secure store for runtime credential values.
                         // Default: 16 credentials × 4KB slots = 64KB mlock'd memory per PRD §3.4.8.
-                        match puzzle_proxy::secure_memory::SecureCredentialStore::new(16, 4096, true)
-                        {
+                        match puzzle_proxy::secure_memory::SecureCredentialStore::new(
+                            16, 4096, true,
+                        ) {
                             Ok(secure_store) => {
                                 ptm.set_secure_store(secure_store);
                                 tracing::info!(

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -8,10 +9,10 @@ use crate::branch::BranchManager;
 use crate::config::DaemonConfig;
 use crate::provenance::ProvenanceStore;
 use crate::trust::TrustManager;
+use anyhow::Result;
 use puzzled_types::BranchId;
 #[cfg(feature = "ima")]
 use puzzled_types::TrustLevel;
-use anyhow::Result;
 use zbus::connection::Connection;
 use zbus::interface;
 use zbus::object_server::SignalEmitter;

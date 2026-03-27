@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 //! HTTP request handler for the agent proxy.
 //!
 //! Routes requests based on method:
@@ -9,10 +10,10 @@ use std::net::IpAddr;
 use std::sync::Arc;
 use std::time::Duration;
 
-use puzzled_types::BranchId;
 use bytes::Bytes;
 use http_body_util::{BodyExt, Full};
 use hyper::{Method, Request, Response, StatusCode};
+use puzzled_types::BranchId;
 use rustls::ServerConfig;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::sync::{Mutex, RwLock, Semaphore};

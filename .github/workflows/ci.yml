@@ -3,9 +3,31 @@ name: CI
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - 'docs/**'
+      - '*.md'
+      - 'man/**'
+      - 'skills/**'
+      - '.claude/**'
   pull_request:
     branches: [main]
+    paths-ignore:
+      - 'docs/**'
+      - '*.md'
+      - 'man/**'
+      - 'skills/**'
+      - '.claude/**'
   workflow_dispatch:
+  workflow_run:
+    workflows: ["Agent Dispatch"]
+    types: [completed]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
 env:
   CARGO_TERM_COLOR: always
@@ -13,15 +35,78 @@ env:
 
 jobs:
   # ---------------------------------------------------------------------------
-  # CI: fmt + clippy + unit tests + feature matrix + cargo-deny
+  # Resolve the ref to check out (handles workflow_run from Agent Dispatch)
+  # ---------------------------------------------------------------------------
+  resolve-ref:
+    name: Resolve Ref
+    if: github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    outputs:
+      ref: ${{ steps.ref.outputs.ref }}
+    steps:
+      - name: Download branch ref from Agent Dispatch
+        if: github.event_name == 'workflow_run'
+        uses: actions/download-artifact@v4
+        with:
+          name: agent-branch
+          path: /tmp
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+        continue-on-error: true
+
+      - name: Determine checkout ref
+        id: ref
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_run" ]; then
+            if [ -f /tmp/agent-branch.txt ]; then
+              BRANCH=$(cat /tmp/agent-branch.txt)
+              echo "ref=$BRANCH" >> $GITHUB_OUTPUT
+              echo "::notice::Running CI on agent branch: $BRANCH"
+            else
+              echo "::notice::No agent-branch artifact found, skipping"
+              echo "ref=" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "ref=" >> $GITHUB_OUTPUT
+          fi
+
+  # ---------------------------------------------------------------------------
+  # CI: license headers + fmt + clippy + unit tests + feature matrix + cargo-deny
   # ---------------------------------------------------------------------------
   ci:
     name: Build & Test
+    needs: [resolve-ref]
+    if: |
+      always() &&
+      (github.event_name != 'workflow_run' || needs.resolve-ref.outputs.ref != '')
     runs-on: ubuntu-latest
-    container:
-      image: ghcr.io/lobstertrap/puzzlepod/ci:fedora42
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.resolve-ref.outputs.ref }}
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential pkg-config clang \
+            libssl-dev libdbus-1-dev libseccomp-dev libsystemd-dev
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Install cargo-deny
+        run: |
+          DENY_VERSION=0.19.0
+          curl -sSfL "https://github.com/EmbarkStudios/cargo-deny/releases/download/${DENY_VERSION}/cargo-deny-${DENY_VERSION}-x86_64-unknown-linux-musl.tar.gz" \
+            | tar xz --strip-components=1 -C /usr/local/bin "cargo-deny-${DENY_VERSION}-x86_64-unknown-linux-musl/cargo-deny"
+
+      - name: "Suite 0/5 — License Headers"
+        run: |
+          chmod +x scripts/check-license-headers.sh
+          scripts/check-license-headers.sh
 
       - name: Cache cargo registry and build
         uses: actions/cache@v4
@@ -73,12 +158,24 @@ jobs:
   # ---------------------------------------------------------------------------
   integration:
     name: D-Bus Integration
-    needs: [ci]
+    needs: [resolve-ref, ci]
+    if: always() && needs.ci.result == 'success'
     runs-on: ubuntu-latest
-    container:
-      image: ghcr.io/lobstertrap/puzzlepod/ci:fedora42
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.resolve-ref.outputs.ref }}
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential pkg-config clang \
+            libssl-dev libdbus-1-dev libseccomp-dev libsystemd-dev \
+            dbus
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
 
       - name: Cache cargo registry and build
         uses: actions/cache@v4
@@ -94,14 +191,14 @@ jobs:
         run: |
           set -euo pipefail
 
-          # Install D-Bus daemon if not in the CI image
-          command -v dbus-daemon >/dev/null 2>&1 || dnf install -y --setopt=install_weak_deps=False dbus-daemon dbus-tools
+          # D-Bus daemon installed via system dependencies step above
 
-          # Create required directories
-          mkdir -p /run/dbus /var/lib/puzzled/branches/wal /run/puzzled /etc/puzzled/profiles /etc/puzzled/policies /etc/dbus-1/system.d
+          # Create required directories (need sudo on ubuntu-latest)
+          sudo mkdir -p /run/dbus /var/lib/puzzled/branches/wal /run/puzzled /etc/puzzled/profiles /etc/puzzled/policies /etc/dbus-1/system.d
+          sudo chmod 777 /var/lib/puzzled/branches/wal /run/puzzled /etc/puzzled/profiles /etc/puzzled/policies
 
           # Install D-Bus policy
-          cat > /etc/dbus-1/system.d/org.lobstertrap.PuzzlePod1.conf << 'DBUS'
+          sudo tee /etc/dbus-1/system.d/org.lobstertrap.PuzzlePod1.conf > /dev/null << 'DBUS'
           <!DOCTYPE busconfig PUBLIC "-//freedesktop//DTD D-BUS Bus Configuration 1.0//EN"
            "http://www.freedesktop.org/standards/dbus/1.0/busconfig.dtd">
           <busconfig>
@@ -119,9 +216,9 @@ jobs:
 
           # Start D-Bus system bus
           export DBUS_SYSTEM_BUS_ADDRESS="unix:path=/run/dbus/system_bus_socket"
-          dbus-daemon --config-file=/usr/share/dbus-1/system.conf --fork --print-pid --address="$DBUS_SYSTEM_BUS_ADDRESS" 2>&1 || {
+          sudo dbus-daemon --config-file=/usr/share/dbus-1/system.conf --fork --print-pid --address="$DBUS_SYSTEM_BUS_ADDRESS" 2>&1 || {
             echo "dbus-daemon --system failed, trying manual start..."
-            dbus-daemon --fork --print-pid --address="$DBUS_SYSTEM_BUS_ADDRESS" --auth=EXTERNAL 2>&1 || true
+            sudo dbus-daemon --fork --print-pid --address="$DBUS_SYSTEM_BUS_ADDRESS" --auth=EXTERNAL 2>&1 || true
           }
           sleep 1
 
@@ -130,7 +227,7 @@ jobs:
           cp policies/rules/*.rego /etc/puzzled/policies/ 2>/dev/null || true
 
           # Write minimal puzzled config
-          cat > /etc/puzzled/puzzled.conf << 'CONF'
+          sudo tee /etc/puzzled/puzzled.conf > /dev/null << 'CONF'
           branch_root: /var/lib/puzzled/branches
           profiles_dir: /etc/puzzled/profiles
           policies_dir: /etc/puzzled/policies
@@ -160,35 +257,35 @@ jobs:
           echo "=== Building puzzled ==="
           cargo build -p puzzled
 
-          # Start puzzled in background
+          # Start puzzled in background (needs sudo for system bus)
           echo "=== Starting puzzled ==="
-          RUST_LOG=puzzled=warn ./target/debug/puzzled &
+          sudo RUST_LOG=puzzled=warn ./target/debug/puzzled &
           PUZZLED_PID=$!
 
           # Wait for D-Bus registration (up to 10 seconds)
           for i in $(seq 1 20); do
-            if dbus-send --system --dest=org.lobstertrap.PuzzlePod1 --print-reply /org/lobstertrap/PuzzlePod1/Manager org.lobstertrap.PuzzlePod1.Manager.ListBranches >/dev/null 2>&1; then
+            if sudo dbus-send --system --dest=org.lobstertrap.PuzzlePod1 --print-reply /org/lobstertrap/PuzzlePod1/Manager org.lobstertrap.PuzzlePod1.Manager.ListBranches >/dev/null 2>&1; then
               echo "puzzled registered on D-Bus (PID $PUZZLED_PID)"
               break
             fi
             sleep 0.5
           done
 
-          if ! dbus-send --system --dest=org.lobstertrap.PuzzlePod1 --print-reply /org/lobstertrap/PuzzlePod1/Manager org.lobstertrap.PuzzlePod1.Manager.ListBranches >/dev/null 2>&1; then
+          if ! sudo dbus-send --system --dest=org.lobstertrap.PuzzlePod1 --print-reply /org/lobstertrap/PuzzlePod1/Manager org.lobstertrap.PuzzlePod1.Manager.ListBranches >/dev/null 2>&1; then
             echo "ERROR: puzzled failed to register on D-Bus within 10s"
-            kill $PUZZLED_PID 2>/dev/null || true
+            sudo kill $PUZZLED_PID 2>/dev/null || true
             exit 1
           fi
 
           # Run live D-Bus integration tests
           echo "=== Suite — Live D-Bus Integration (26 tests) ==="
           set +e
-          cargo test -p puzzled --test live_dbus_integration -- --test-threads=1
+          sudo -E env "PATH=$PATH" cargo test -p puzzled --test live_dbus_integration -- --test-threads=1
           TEST_RESULT=$?
           set -e
 
           # Stop puzzled
-          kill $PUZZLED_PID 2>/dev/null || true
+          sudo kill $PUZZLED_PID 2>/dev/null || true
           wait $PUZZLED_PID 2>/dev/null || true
           echo "puzzled stopped"
 
@@ -199,7 +296,8 @@ jobs:
   # ---------------------------------------------------------------------------
   security-test:
     name: Security Tests
-    if: github.event_name == 'workflow_dispatch'
+    needs: [resolve-ref]
+    if: always() && github.event_name == 'workflow_dispatch'
     runs-on: [self-hosted, privileged]
     continue-on-error: true
     container:
@@ -207,6 +305,8 @@ jobs:
       options: --privileged
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.resolve-ref.outputs.ref }}
 
       - name: "Suite 1/3 — Cargo Integration Tests (root + Linux)"
         run: |
@@ -241,13 +341,15 @@ jobs:
   # ---------------------------------------------------------------------------
   release:
     name: Release Build
-    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
-    needs: [ci]
+    needs: [resolve-ref, ci]
+    if: always() && needs.ci.result == 'success' && github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     container:
       image: ghcr.io/lobstertrap/puzzlepod/ci:fedora42
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.resolve-ref.outputs.ref }}
 
       - name: Build release binaries
         run: cargo build --workspace --profile release

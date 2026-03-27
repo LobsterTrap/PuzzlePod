@@ -1,5 +1,6 @@
-use puzzled_types::{FileChange, FileChangeKind};
+// SPDX-License-Identifier: Apache-2.0
 use criterion::{criterion_group, criterion_main, Criterion};
+use puzzled_types::{FileChange, FileChangeKind};
 use std::path::PathBuf;
 
 fn bench_policy_evaluation(c: &mut Criterion) {

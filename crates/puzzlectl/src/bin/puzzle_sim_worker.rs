@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 //! puzzle-sim-worker — runs inside a sandboxed branch, executing scenario actions.
 //!
 //! Usage: puzzle-sim-worker --scenario /path/to/scenario.yaml --root /merged
@@ -14,8 +15,8 @@
 
 #[cfg(feature = "sim")]
 fn main() -> anyhow::Result<()> {
-    use puzzlectl::sim::scenario::Scenario;
     use anyhow::Context;
+    use puzzlectl::sim::scenario::Scenario;
     use std::path::PathBuf;
 
     let args: Vec<String> = std::env::args().collect();

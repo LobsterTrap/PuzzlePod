@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // puzzle-init: Landlock shim entrypoint for PuzzlePod containers.
 //
 // This binary runs INSIDE the container as the entrypoint (PID 1 or wrapper).
@@ -248,10 +249,7 @@ mod enforce {
 
         match status.ruleset {
             RulesetStatus::FullyEnforced => {
-                eprintln!(
-                    "puzzle-init: Landlock fully enforced (ABI {:?})",
-                    rules.abi
-                );
+                eprintln!("puzzle-init: Landlock fully enforced (ABI {:?})", rules.abi);
             }
             RulesetStatus::PartiallyEnforced => {
                 eprintln!(
@@ -960,9 +958,7 @@ mod proxy {
         let combined = match system_ca {
             Some(ref system) => format!("{}\n{}", system, proxy_ca),
             None => {
-                eprintln!(
-                    "puzzle-init: §3.4 G11: no system CA bundle found — using proxy CA only"
-                );
+                eprintln!("puzzle-init: §3.4 G11: no system CA bundle found — using proxy CA only");
                 proxy_ca
             }
         };

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 //! Integration tests: Seccomp USER_NOTIF event loop (Linux-only, requires root).
 //!
 //! Tests that the seccomp notification handler correctly processes execve
@@ -179,8 +180,13 @@ async fn test_handler_unregister_by_fd() {
 fn test_unknown_exec_denied() {
     let profile = make_profile(vec!["/usr/bin/python3".to_string()]);
 
-    let result =
-        puzzled::seccomp_handler::inject_fd_for_execve_with_path(0, 0, 1, "/usr/bin/curl", &profile);
+    let result = puzzled::seccomp_handler::inject_fd_for_execve_with_path(
+        0,
+        0,
+        1,
+        "/usr/bin/curl",
+        &profile,
+    );
 
     assert!(
         result.is_err(),

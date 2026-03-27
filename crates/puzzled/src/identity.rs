@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 //! Agent Workload Identity (§4.5).
 //!
 //! Implements SPIFFE-compatible JWT-SVID issuance and verification for agent
@@ -17,11 +18,11 @@
 #[cfg(feature = "ima")]
 mod inner {
     use crate::error::{PuzzledError, Result};
-    use puzzled_types::merkle::hex_encode;
-    use puzzled_types::{ContainmentClaims, GovernanceClaims, GovernanceClaimsMetadata};
     use base64::engine::general_purpose::URL_SAFE_NO_PAD;
     use base64::Engine;
     use ed25519_dalek::{Signature, Signer, SigningKey, Verifier, VerifyingKey};
+    use puzzled_types::merkle::hex_encode;
+    use puzzled_types::{ContainmentClaims, GovernanceClaims, GovernanceClaimsMetadata};
     use std::time::{SystemTime, UNIX_EPOCH};
 
     /// Base64url-encode bytes (no padding, URL-safe alphabet).
@@ -245,7 +246,9 @@ mod inner {
                         "exp timestamp overflows u64 (now + lifetime)".to_string(),
                     )
                 })?)
-                .map_err(|_| PuzzledError::Attestation("exp timestamp overflows i64".to_string()))?,
+                .map_err(|_| {
+                    PuzzledError::Attestation("exp timestamp overflows i64".to_string())
+                })?,
                 branch_id: branch_id.to_string(),
                 agent_profile: profile.to_string(),
                 trust_level: trust_level.to_string(),

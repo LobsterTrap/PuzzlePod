@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 #[cfg(feature = "bpf_lsm")]
 pub mod bpf_lsm;
 
@@ -1044,7 +1045,8 @@ impl SandboxBuilder {
             // Setting context on /proc/self/attr/current requires MAC_ADMIN capability,
             // which is dropped by drop_capabilities().
             if selinux::SelinuxEnforcer::verify_available() {
-                if let Err(e) = selinux::SelinuxEnforcer::set_context(std::process::id(), "puzzlepod_t")
+                if let Err(e) =
+                    selinux::SelinuxEnforcer::set_context(std::process::id(), "puzzlepod_t")
                 {
                     tracing::warn!(error = %e, "failed to set SELinux context (continuing)");
                 }

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 //! puzzle-phase2-demo — Live Phase 2 demo for PuzzlePod hardening features.
 //!
 //! Exercises real Rust code from puzzled, puzzled-types, and puzzle-proxy crates
@@ -1665,8 +1666,8 @@ fn demo_metrics() {
 // ═══════════════════════════════════════════════════════════════════════════
 
 fn demo_state() {
-    use puzzled_types::{BranchId, BranchInfo, BranchState};
     use chrono::Utc;
+    use puzzled_types::{BranchId, BranchInfo, BranchState};
 
     section_header("Section 11: Zero-Downtime State Serialization");
 
@@ -1797,10 +1798,10 @@ fn demo_state() {
 // ═══════════════════════════════════════════════════════════════════════════
 
 fn demo_attestation(output_dir: Option<PathBuf>) {
+    use ed25519_dalek::SigningKey;
     use puzzled::audit::AuditEvent;
     use puzzled::audit_store::AuditStore;
     use puzzled_types::BranchId;
-    use ed25519_dalek::SigningKey;
 
     section_header("Cryptographic Attestation (PRD §3.1)");
 

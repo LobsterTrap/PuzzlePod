@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 //! Integration test: Rogue Agent shell security tests.
 //!
 //! Wraps the shell-based security test scripts so they run as part of
@@ -44,7 +45,9 @@ fn find_puzzle_sandbox_demo() -> Option<PathBuf> {
     }
     if let Ok(target_dir) = std::env::var("CARGO_TARGET_DIR") {
         for dir in ["release", "debug"] {
-            let path = PathBuf::from(&target_dir).join(dir).join("puzzle-sandbox-demo");
+            let path = PathBuf::from(&target_dir)
+                .join(dir)
+                .join("puzzle-sandbox-demo");
             if path.exists() {
                 return Some(path);
             }
@@ -113,7 +116,9 @@ fn rogue_agent_sandbox() {
     let puzzle_sandbox_demo = match find_puzzle_sandbox_demo() {
         Some(p) => p,
         None => {
-            eprintln!("SKIP: puzzle-sandbox-demo binary not found, build with cargo build --workspace");
+            eprintln!(
+                "SKIP: puzzle-sandbox-demo binary not found, build with cargo build --workspace"
+            );
             return;
         }
     };

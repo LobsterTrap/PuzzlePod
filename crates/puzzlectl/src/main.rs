@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 use puzzlectl::client;
 use puzzlectl::compliance;
 #[cfg(feature = "sim")]
@@ -5,10 +6,10 @@ use puzzlectl::sim;
 #[cfg(feature = "tui")]
 mod tui;
 
-use puzzled_types::{AgentProfile, BranchId, FileChange, GovernanceDecision, InclusionProof};
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
 use ed25519_dalek::{Signature, VerifyingKey};
+use puzzled_types::{AgentProfile, BranchId, FileChange, GovernanceDecision, InclusionProof};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
@@ -3680,7 +3681,8 @@ mod tests {
 
     #[test]
     fn test_cli_branch_list_with_state_filter() {
-        let cli = Cli::try_parse_from(["puzzlectl", "branch", "list", "--state", "active"]).unwrap();
+        let cli =
+            Cli::try_parse_from(["puzzlectl", "branch", "list", "--state", "active"]).unwrap();
         match cli.command {
             Command::Branch {
                 action: BranchAction::List { state },
@@ -4195,8 +4197,8 @@ fail_mode: FailClosed
 
     #[test]
     fn test_cli_profile_list_custom_dir() {
-        let cli =
-            Cli::try_parse_from(["puzzlectl", "profile", "list", "--dir", "/tmp/profiles"]).unwrap();
+        let cli = Cli::try_parse_from(["puzzlectl", "profile", "list", "--dir", "/tmp/profiles"])
+            .unwrap();
         match cli.command {
             Command::Profile {
                 action: ProfileAction::List { dir },
@@ -4337,7 +4339,8 @@ fail_mode: FailClosed
 
     #[test]
     fn test_cli_branch_create_missing_base() {
-        let result = Cli::try_parse_from(["puzzlectl", "branch", "create", "--profile", "standard"]);
+        let result =
+            Cli::try_parse_from(["puzzlectl", "branch", "create", "--profile", "standard"]);
         assert!(result.is_err());
     }
 

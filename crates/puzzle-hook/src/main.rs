@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 //! puzzle-hook — OCI runtime hook for PuzzlePod governance integration.
 //!
 //! This binary is invoked by the container runtime (crun) at two OCI lifecycle
@@ -396,7 +397,10 @@ mod tests {
         assert_eq!(state.oci_version, "1.0.2");
         assert!(state.annotations.contains_key("run.oci.handler"));
         assert_eq!(
-            state.annotations.get("org.lobstertrap.puzzlepod.branch").unwrap(),
+            state
+                .annotations
+                .get("org.lobstertrap.puzzlepod.branch")
+                .unwrap(),
             "br-001"
         );
     }
@@ -482,7 +486,8 @@ mod tests {
 
     #[test]
     fn test_extract_branch_id_present() {
-        let json = make_oci_state_json("creating", Some(1), Some("puzzlepod"), Some("my-branch-42"));
+        let json =
+            make_oci_state_json("creating", Some(1), Some("puzzlepod"), Some("my-branch-42"));
         let state = parse_oci_state(json.as_bytes()).unwrap();
         assert_eq!(extract_branch_id(&state).unwrap(), "my-branch-42");
     }
