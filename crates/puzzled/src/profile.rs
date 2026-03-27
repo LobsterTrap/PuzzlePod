@@ -382,6 +382,76 @@ fn domain_matches_pattern(domain: &str, pattern: &str) -> bool {
     }
 }
 
+/// Merge a parent profile with a child profile for inheritance.
+///
+/// Rules:
+/// - `name`, `description`: always use child's values
+/// - Vec fields (exec_allowlist, exec_denylist, capabilities, filesystem lists):
+///   if child's list is empty, inherit parent's; otherwise use child's
+/// - Scalar/struct fields (resource_limits, network, behavioral, enforcement,
+///   fail_mode, seccomp_mode, allow_symlinks, allow_exec_overlay): always use child's
+/// - `credentials`: use child's if Some, else parent's
+/// - `extends`: set to None (resolved)
+fn merge_profile(parent: &AgentProfile, child: &AgentProfile) -> AgentProfile {
+    use puzzled_types::FilesystemRules;
+
+    let inherit_vec = |child_vec: &[String], parent_vec: &[String]| -> Vec<String> {
+        if child_vec.is_empty() {
+            parent_vec.to_vec()
+        } else {
+            child_vec.to_vec()
+        }
+    };
+
+    let inherit_pathvec = |child_vec: &[PathBuf], parent_vec: &[PathBuf]| -> Vec<PathBuf> {
+        if child_vec.is_empty() {
+            parent_vec.to_vec()
+        } else {
+            child_vec.to_vec()
+        }
+    };
+
+    AgentProfile {
+        name: child.name.clone(),
+        description: child.description.clone(),
+        filesystem: FilesystemRules {
+            read_allowlist: inherit_pathvec(
+                &child.filesystem.read_allowlist,
+                &parent.filesystem.read_allowlist,
+            ),
+            write_allowlist: inherit_pathvec(
+                &child.filesystem.write_allowlist,
+                &parent.filesystem.write_allowlist,
+            ),
+            denylist: inherit_pathvec(&child.filesystem.denylist, &parent.filesystem.denylist),
+            read_denylist: inherit_pathvec(
+                &child.filesystem.read_denylist,
+                &parent.filesystem.read_denylist,
+            ),
+            write_denylist: inherit_pathvec(
+                &child.filesystem.write_denylist,
+                &parent.filesystem.write_denylist,
+            ),
+        },
+        exec_allowlist: inherit_vec(&child.exec_allowlist, &parent.exec_allowlist),
+        exec_denylist: inherit_vec(&child.exec_denylist, &parent.exec_denylist),
+        capabilities: inherit_vec(&child.capabilities, &parent.capabilities),
+        resource_limits: child.resource_limits.clone(),
+        network: child.network.clone(),
+        behavioral: child.behavioral.clone(),
+        fail_mode: child.fail_mode,
+        enforcement: child.enforcement.clone(),
+        seccomp_mode: child.seccomp_mode,
+        allow_symlinks: child.allow_symlinks,
+        allow_exec_overlay: child.allow_exec_overlay,
+        credentials: child
+            .credentials
+            .clone()
+            .or_else(|| parent.credentials.clone()),
+        extends: None,
+    }
+}
+
 /// Loads and manages agent profiles from YAML files on disk.
 pub struct ProfileLoader {
     profiles_dir: PathBuf,
@@ -424,6 +494,8 @@ impl ProfileLoader {
         // M2: Atomic swap — only replace profiles if all loaded successfully.
         self.profiles = new_profiles;
 
+        self.resolve_inheritance()?;
+
         tracing::info!(count = self.profiles.len(), "loaded agent profiles");
         Ok(())
     }
@@ -454,6 +526,78 @@ impl ProfileLoader {
     /// List all loaded profile names.
     pub fn list(&self) -> Vec<&str> {
         self.profiles.keys().map(|s| s.as_str()).collect()
+    }
+
+    /// Resolve profile inheritance chains.
+    ///
+    /// For each profile with `extends: Some(parent_name)`, walk the chain
+    /// up to max depth 3, detect cycles, and merge from root ancestor down.
+    fn resolve_inheritance(&mut self) -> Result<()> {
+        // Snapshot the original extends values before any resolution mutates them.
+        let original_extends: HashMap<String, String> = self
+            .profiles
+            .iter()
+            .filter_map(|(name, profile)| {
+                profile
+                    .extends
+                    .as_ref()
+                    .map(|parent| (name.clone(), parent.clone()))
+            })
+            .collect();
+
+        // Build and resolve each chain using original extends values.
+        for child_name in original_extends.keys() {
+            let mut chain = vec![child_name.clone()];
+            let mut visited = HashSet::new();
+            visited.insert(child_name.clone());
+
+            let mut current_name = child_name.clone();
+            while let Some(parent_name) = original_extends.get(&current_name) {
+                if visited.contains(parent_name) {
+                    return Err(PuzzledError::Profile(format!(
+                        "inheritance cycle detected: {} -> {}",
+                        chain.join(" -> "),
+                        parent_name
+                    )));
+                }
+                if chain.len() >= 3 {
+                    return Err(PuzzledError::Profile(format!(
+                        "inheritance depth exceeds maximum of 3: {}",
+                        chain.join(" -> ")
+                    )));
+                }
+                if !self.profiles.contains_key(parent_name) {
+                    return Err(PuzzledError::Profile(format!(
+                        "profile '{}' extends unknown parent '{}'",
+                        current_name, parent_name
+                    )));
+                }
+                chain.push(parent_name.clone());
+                visited.insert(parent_name.clone());
+                current_name = parent_name.clone();
+            }
+
+            // Resolve from root ancestor down to child.
+            // chain is [child, parent, grandparent, ...], reverse to get root-first.
+            chain.reverse();
+            let mut resolved = self.profiles[&chain[0]].clone();
+            for name in &chain[1..] {
+                resolved = merge_profile(&resolved, &self.profiles[name]);
+            }
+            resolved.extends = None;
+
+            // Validate the merged profile.
+            validate_profile(&resolved).map_err(|e| {
+                PuzzledError::Profile(format!(
+                    "merged profile '{}' validation failed: {}",
+                    child_name, e
+                ))
+            })?;
+
+            self.profiles.insert(child_name.clone(), resolved);
+        }
+
+        Ok(())
     }
 }
 
@@ -833,5 +977,358 @@ fail_mode: FailClosed
         spec2.max_credential_size = 100_000;
         let errors2 = validate_credential_specs(&[spec2], &[], &[]);
         assert!(errors2.iter().any(|e| e.contains("max_credential_size")));
+    }
+
+    // --- Profile Inheritance Tests ---
+
+    const PARENT_PROFILE_YAML: &str = r#"
+name: parent
+description: Parent profile
+filesystem:
+  read_allowlist:
+    - /usr/bin
+    - /usr/share
+  write_allowlist: []
+  denylist:
+    - /etc/shadow
+exec_allowlist:
+  - /usr/bin/python3
+exec_denylist:
+  - /usr/bin/curl
+resource_limits:
+  memory_bytes: 536870912
+  cpu_shares: 100
+  io_weight: 100
+  max_pids: 64
+  storage_quota_mb: 1024
+  inode_quota: 10000
+network:
+  mode: Blocked
+  allowed_domains: []
+behavioral:
+  max_deletions: 50
+  max_reads_per_minute: 1000
+  credential_access_alert: false
+fail_mode: FailClosed
+"#;
+
+    #[test]
+    fn test_profile_inheritance_basic() {
+        let dir = TempDir::new().unwrap();
+        std::fs::write(dir.path().join("parent.yaml"), PARENT_PROFILE_YAML).unwrap();
+
+        // Child with empty exec_allowlist should inherit parent's
+        let child_yaml = r#"
+name: child
+description: Child profile
+extends: parent
+filesystem:
+  read_allowlist: []
+  write_allowlist: []
+  denylist: []
+exec_allowlist: []
+exec_denylist: []
+resource_limits:
+  memory_bytes: 1073741824
+  cpu_shares: 100
+  io_weight: 100
+  max_pids: 128
+  storage_quota_mb: 2048
+  inode_quota: 20000
+network:
+  mode: Blocked
+  allowed_domains: []
+behavioral:
+  max_deletions: 100
+  max_reads_per_minute: 2000
+  credential_access_alert: false
+fail_mode: FailClosed
+"#;
+        std::fs::write(dir.path().join("child.yaml"), child_yaml).unwrap();
+
+        let mut loader = ProfileLoader::new(dir.path().to_path_buf());
+        loader.load_all().unwrap();
+
+        let child = loader.get("child").unwrap();
+        assert_eq!(
+            child.extends, None,
+            "extends should be cleared after resolution"
+        );
+        // Child had empty exec_allowlist, should inherit parent's
+        assert_eq!(child.exec_allowlist, vec!["/usr/bin/python3"]);
+        // Child had empty exec_denylist, should inherit parent's
+        assert_eq!(child.exec_denylist, vec!["/usr/bin/curl"]);
+        // Child had empty read_allowlist, should inherit parent's
+        assert_eq!(child.filesystem.read_allowlist.len(), 2);
+        // Child's own resource_limits should be used
+        assert_eq!(child.resource_limits.memory_bytes, 1073741824);
+        assert_eq!(child.resource_limits.max_pids, 128);
+    }
+
+    #[test]
+    fn test_profile_inheritance_override() {
+        let dir = TempDir::new().unwrap();
+        std::fs::write(dir.path().join("parent.yaml"), PARENT_PROFILE_YAML).unwrap();
+
+        // Child with non-empty exec_allowlist should override parent's
+        let child_yaml = r#"
+name: child-override
+description: Child with overrides
+extends: parent
+filesystem:
+  read_allowlist: []
+  write_allowlist: []
+  denylist: []
+exec_allowlist:
+  - /usr/bin/node
+exec_denylist: []
+resource_limits:
+  memory_bytes: 1073741824
+  cpu_shares: 100
+  io_weight: 100
+  max_pids: 64
+  storage_quota_mb: 1024
+  inode_quota: 10000
+network:
+  mode: Blocked
+  allowed_domains: []
+behavioral:
+  max_deletions: 100
+  max_reads_per_minute: 1000
+  credential_access_alert: false
+fail_mode: FailClosed
+"#;
+        std::fs::write(dir.path().join("child-override.yaml"), child_yaml).unwrap();
+
+        let mut loader = ProfileLoader::new(dir.path().to_path_buf());
+        loader.load_all().unwrap();
+
+        let child = loader.get("child-override").unwrap();
+        // Child's non-empty exec_allowlist should win
+        assert_eq!(child.exec_allowlist, vec!["/usr/bin/node"]);
+    }
+
+    #[test]
+    fn test_profile_inheritance_cycle_detection() {
+        let dir = TempDir::new().unwrap();
+
+        let yaml_a = r#"
+name: cycle-a
+description: Cycle A
+extends: cycle-b
+filesystem:
+  read_allowlist: []
+  write_allowlist: []
+  denylist: []
+exec_allowlist: []
+resource_limits:
+  memory_bytes: 536870912
+  cpu_shares: 100
+  io_weight: 100
+  max_pids: 64
+  storage_quota_mb: 1024
+  inode_quota: 10000
+network:
+  mode: Blocked
+  allowed_domains: []
+behavioral:
+  max_deletions: 50
+  max_reads_per_minute: 1000
+  credential_access_alert: false
+fail_mode: FailClosed
+"#;
+        let yaml_b = yaml_a
+            .replace("name: cycle-a", "name: cycle-b")
+            .replace("extends: cycle-b", "extends: cycle-a")
+            .replace("Cycle A", "Cycle B");
+
+        std::fs::write(dir.path().join("cycle-a.yaml"), yaml_a).unwrap();
+        std::fs::write(dir.path().join("cycle-b.yaml"), &yaml_b).unwrap();
+
+        let mut loader = ProfileLoader::new(dir.path().to_path_buf());
+        let result = loader.load_all();
+        assert!(result.is_err());
+        let err = format!("{}", result.unwrap_err());
+        assert!(
+            err.contains("cycle") || err.contains("depth"),
+            "error should mention cycle or depth: {}",
+            err
+        );
+    }
+
+    #[test]
+    fn test_profile_inheritance_max_depth() {
+        let dir = TempDir::new().unwrap();
+
+        // Create a chain of depth 4: d -> c -> b -> a (exceeds max 3)
+        let base_yaml = |name: &str, extends: Option<&str>| -> String {
+            let ext = extends
+                .map(|e| format!("extends: {}", e))
+                .unwrap_or_default();
+            format!(
+                r#"
+name: {}
+description: Depth test {}
+{}
+filesystem:
+  read_allowlist: []
+  write_allowlist: []
+  denylist: []
+exec_allowlist: []
+resource_limits:
+  memory_bytes: 536870912
+  cpu_shares: 100
+  io_weight: 100
+  max_pids: 64
+  storage_quota_mb: 1024
+  inode_quota: 10000
+network:
+  mode: Blocked
+  allowed_domains: []
+behavioral:
+  max_deletions: 50
+  max_reads_per_minute: 1000
+  credential_access_alert: false
+fail_mode: FailClosed
+"#,
+                name, name, ext
+            )
+        };
+
+        std::fs::write(dir.path().join("depth-a.yaml"), base_yaml("depth-a", None)).unwrap();
+        std::fs::write(
+            dir.path().join("depth-b.yaml"),
+            base_yaml("depth-b", Some("depth-a")),
+        )
+        .unwrap();
+        std::fs::write(
+            dir.path().join("depth-c.yaml"),
+            base_yaml("depth-c", Some("depth-b")),
+        )
+        .unwrap();
+        std::fs::write(
+            dir.path().join("depth-d.yaml"),
+            base_yaml("depth-d", Some("depth-c")),
+        )
+        .unwrap();
+
+        let mut loader = ProfileLoader::new(dir.path().to_path_buf());
+        let result = loader.load_all();
+        assert!(result.is_err());
+        let err = format!("{}", result.unwrap_err());
+        assert!(err.contains("depth"), "error should mention depth: {}", err);
+    }
+
+    #[test]
+    fn test_profile_inheritance_missing_parent() {
+        let dir = TempDir::new().unwrap();
+
+        let child_yaml = r#"
+name: orphan
+description: Orphan profile
+extends: nonexistent
+filesystem:
+  read_allowlist: []
+  write_allowlist: []
+  denylist: []
+exec_allowlist: []
+resource_limits:
+  memory_bytes: 536870912
+  cpu_shares: 100
+  io_weight: 100
+  max_pids: 64
+  storage_quota_mb: 1024
+  inode_quota: 10000
+network:
+  mode: Blocked
+  allowed_domains: []
+behavioral:
+  max_deletions: 50
+  max_reads_per_minute: 1000
+  credential_access_alert: false
+fail_mode: FailClosed
+"#;
+        std::fs::write(dir.path().join("orphan.yaml"), child_yaml).unwrap();
+
+        let mut loader = ProfileLoader::new(dir.path().to_path_buf());
+        let result = loader.load_all();
+        assert!(result.is_err());
+        let err = format!("{}", result.unwrap_err());
+        assert!(
+            err.contains("unknown parent") || err.contains("nonexistent"),
+            "error should mention missing parent: {}",
+            err
+        );
+    }
+
+    #[test]
+    fn test_profile_inheritance_chain_depth_3() {
+        let dir = TempDir::new().unwrap();
+
+        let base_yaml = |name: &str, extends: Option<&str>| -> String {
+            let ext = extends
+                .map(|e| format!("extends: {}", e))
+                .unwrap_or_default();
+            format!(
+                r#"
+name: {}
+description: Chain test {}
+{}
+filesystem:
+  read_allowlist: []
+  write_allowlist: []
+  denylist: []
+exec_allowlist: []
+resource_limits:
+  memory_bytes: 536870912
+  cpu_shares: 100
+  io_weight: 100
+  max_pids: 64
+  storage_quota_mb: 1024
+  inode_quota: 10000
+network:
+  mode: Blocked
+  allowed_domains: []
+behavioral:
+  max_deletions: 50
+  max_reads_per_minute: 1000
+  credential_access_alert: false
+fail_mode: FailClosed
+"#,
+                name, name, ext
+            )
+        };
+
+        // Chain of 3: c -> b -> a (depth 3, should be OK)
+        std::fs::write(dir.path().join("chain-a.yaml"), base_yaml("chain-a", None)).unwrap();
+        std::fs::write(
+            dir.path().join("chain-b.yaml"),
+            base_yaml("chain-b", Some("chain-a")),
+        )
+        .unwrap();
+        std::fs::write(
+            dir.path().join("chain-c.yaml"),
+            base_yaml("chain-c", Some("chain-b")),
+        )
+        .unwrap();
+
+        let mut loader = ProfileLoader::new(dir.path().to_path_buf());
+        loader.load_all().unwrap(); // Should succeed
+        assert!(loader.get("chain-c").is_some());
+        assert_eq!(loader.get("chain-c").unwrap().extends, None);
+    }
+
+    #[test]
+    fn test_profile_inheritance_preserves_standalone() {
+        let dir = TempDir::new().unwrap();
+        std::fs::write(dir.path().join("standalone.yaml"), VALID_PROFILE_YAML).unwrap();
+
+        let mut loader = ProfileLoader::new(dir.path().to_path_buf());
+        loader.load_all().unwrap();
+
+        let profile = loader.get("test-profile").unwrap();
+        assert_eq!(profile.extends, None);
+        assert_eq!(profile.name, "test-profile");
+        assert_eq!(profile.resource_limits.memory_bytes, 1073741824);
     }
 }

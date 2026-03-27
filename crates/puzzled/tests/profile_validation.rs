@@ -321,6 +321,7 @@ fn test_profile_serialization_roundtrip() {
         allow_symlinks: false,
         allow_exec_overlay: false,
         credentials: None,
+        extends: None,
     };
 
     let yaml = serde_yaml::to_string(&profile).unwrap();
@@ -674,6 +675,7 @@ fn test_profile_full_roundtrip_all_fields() {
         allow_symlinks: false,
         allow_exec_overlay: false,
         credentials: None,
+        extends: None,
     };
 
     let yaml = serde_yaml::to_string(&profile).unwrap();

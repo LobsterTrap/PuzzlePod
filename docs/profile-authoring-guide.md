@@ -66,6 +66,37 @@ behavioral:
 - `description` -- Recommended but not required.
 - `fail_mode` -- Defaults to `fail-closed` if omitted.
 
+### Profile Inheritance
+
+Profiles can inherit from a parent profile using the `extends` field:
+
+```yaml
+name: my-custom-agent
+description: Custom agent extending standard
+extends: standard
+
+filesystem:
+  write_allowlist:
+    - /workspace
+  # read_allowlist, denylist inherited from standard (empty lists inherit)
+
+resource_limits:
+  memory_bytes: 1073741824
+  max_pids: 128
+  # resource_limits always use child's values
+```
+
+**Merge rules:**
+- **Vec fields** (exec_allowlist, exec_denylist, capabilities, all filesystem lists): if the child's list is empty, the parent's list is inherited; if non-empty, the child's list replaces the parent's entirely
+- **Scalar/struct fields** (resource_limits, network, behavioral, fail_mode, seccomp_mode, etc.): always use the child's values
+- **credentials**: child's if present, else parent's
+
+**Constraints:**
+- Maximum inheritance depth: 3 levels (e.g., grandchild extends child extends parent)
+- Circular inheritance is detected and rejected
+- The parent profile must exist in the same profiles directory
+- The merged profile is validated after resolution
+
 ## Filesystem Rules
 
 Filesystem access is enforced by Landlock LSM, an in-kernel mechanism
@@ -291,6 +322,18 @@ fail_mode: fail-closed
 **Important:** For safety-critical deployments (vehicles, robots, drones,
 industrial controllers), always use `fail-safe-state` and ensure a
 certified safety controller sits between the agent and physical actuators.
+
+## Creating Profiles
+
+Use `puzzlectl profile init` to generate a new profile YAML:
+
+```bash
+# Generate a new profile interactively
+puzzlectl profile init --out /etc/puzzled/profiles/my-agent.yaml
+
+# Generate non-interactively with inheritance
+puzzlectl profile init --non-interactive --name my-agent --extends standard
+```
 
 ## Testing Profiles
 

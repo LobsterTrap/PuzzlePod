@@ -109,8 +109,11 @@ make build
 # Run tests
 make test
 
-# Start puzzled and create an agent branch
+# Start puzzled and run a governed command (single-step)
 sudo systemctl start puzzled
+puzzlectl run --profile=restricted -- python3 agent.py
+
+# Or step-by-step for fine-grained control:
 puzzlectl branch create --profile=restricted --base=/home/user/project
 puzzlectl branch inspect <branch_id>
 puzzlectl branch approve <branch_id>

@@ -824,6 +824,7 @@ mod tests {
             allow_symlinks: false,
             allow_exec_overlay: false,
             credentials: None,
+            extends: None,
         };
 
         let branch_id = BranchId::from("test-branch".to_string());
@@ -877,6 +878,7 @@ mod tests {
             allow_symlinks: false,
             allow_exec_overlay: false,
             credentials: None,
+            extends: None,
         };
 
         handler
@@ -952,6 +954,7 @@ mod tests {
             allow_symlinks: false,
             allow_exec_overlay: false,
             credentials: None,
+            extends: None,
         }
     }
 

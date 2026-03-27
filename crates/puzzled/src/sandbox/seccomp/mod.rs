@@ -317,6 +317,7 @@ mod tests {
             allow_symlinks: false,
             allow_exec_overlay: false,
             credentials: None,
+            extends: None,
         };
 
         // Can't actually test proc mem reading without a real process,
@@ -570,6 +571,7 @@ mod tests {
             allow_symlinks: false,
             allow_exec_overlay: false,
             credentials: None,
+            extends: None,
         };
 
         let builder = SeccompBuilder {
@@ -652,6 +654,7 @@ mod tests {
             allow_symlinks: false,
             allow_exec_overlay: false,
             credentials: None,
+            extends: None,
         };
 
         let builder = SeccompBuilder {
@@ -697,6 +700,7 @@ mod tests {
             allow_symlinks: false,
             allow_exec_overlay: false,
             credentials: None,
+            extends: None,
         };
 
         let exec_count = std::sync::atomic::AtomicU64::new(0);

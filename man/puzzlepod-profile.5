@@ -37,6 +37,28 @@ argument to
 .RI ( optional )
 Human\-readable description of the profile's purpose and security posture.
 .TP
+.BI extends " string"
+.RI ( optional )
+Name of a parent profile to inherit from. The child profile inherits all
+fields from the parent; child fields override parent fields. For Vec fields
+(exec_allowlist, exec_denylist, capabilities, and all filesystem lists), an
+empty list in the child inherits the parent's list; a non\-empty list
+replaces the parent's entirely. Scalar and struct fields (resource_limits,
+network, behavioral, fail_mode, seccomp_mode, etc.) always use the child's
+values. Credentials use the child's if present, otherwise the parent's.
+.IP
+Maximum inheritance depth is 3 levels (e.g., grandchild extends child
+extends parent). Circular inheritance is detected and rejected. The parent
+profile must exist in the same profiles directory. The merged profile is
+validated after resolution.
+.IP
+Example:
+.RS
+.nf
+extends: standard
+.fi
+.RE
+.TP
 .BI fail_mode " string"
 .RI ( optional )
 Behavior when the governance daemon cannot evaluate policy. One of:

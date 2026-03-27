@@ -448,6 +448,7 @@ puzzlectl policy reload
 ```yaml
 name: my-agent
 description: "Custom agent profile"
+extends: standard              # Optional: inherit from a parent profile (max depth 3)
 
 filesystem:
   read_allowlist:         # Paths the agent can read (in addition to branch)
@@ -494,7 +495,16 @@ puzzlectl profile show standard
 
 # Test a profile against a simulated workload
 puzzlectl profile test standard --workload /path/to/workload.json
+
+# Generate a new profile interactively
+puzzlectl profile init --out /etc/puzzled/profiles/my-agent.yaml
+
+# Generate non-interactively with inheritance
+puzzlectl profile init --non-interactive --name my-agent --extends standard \
+    --out /etc/puzzled/profiles/my-agent.yaml
 ```
+
+Profile inheritance via `extends` lets a child profile inherit Vec fields (allowlists, denylist) from a parent when left empty, while scalar fields always use the child's value. Maximum inheritance depth is 3 levels; cycles are detected at load time.
 
 ---
 
@@ -558,6 +568,39 @@ puzzlectl policy reload
 ```
 
 `puzzled` reloads the Rego policies and replaces the running policy engine atomically.
+
+### Adding Rules from Templates
+
+Use `puzzlectl policy add-rule` to generate Rego rules from common templates:
+
+```bash
+# Add a rule to deny production config files
+puzzlectl policy add-rule --deny-path "*.prod.yml" --severity critical
+
+# Preview generated Rego without writing
+puzzlectl policy add-rule --deny-extension ".exe,.dll" --dry-run
+
+# Combine constraints: max file size and file count
+puzzlectl policy add-rule --max-file-size 5242880 --max-files 500
+```
+
+### Running Governed Agents
+
+`puzzlectl run` provides single-command governed execution, combining branch creation, activation, diff display, and commit/rollback:
+
+```bash
+# Interactive: displays diff and prompts for commit or rollback
+puzzlectl run --profile=standard -- python3 agent.py
+
+# Auto-commit on clean exit
+puzzlectl run --auto-commit -- ./build.sh
+
+# Auto-rollback (useful for exploratory or experimental runs)
+puzzlectl run --auto-rollback -- ./experiment.sh
+
+# Suppress diff output
+puzzlectl run --profile=standard --no-diff --auto-commit -- ./batch-job.sh
+```
 
 ---
 

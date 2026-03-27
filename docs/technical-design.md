@@ -612,6 +612,7 @@ Agent containment profiles are defined as YAML files loaded by puzzled:
 # /etc/puzzled/profiles/code-assistant.yaml
 profile: code-assistant
 version: 1
+extends: standard              # optional, inherit from parent profile
 
 filesystem:
   read_allow:
@@ -685,6 +686,8 @@ enforcement:
   require_landlock: true
   require_seccomp: true
 ```
+
+**Profile inheritance:** When `extends` is specified, the child profile inherits all fields from the named parent. Child scalar fields always override. Vec fields (e.g., `exec_allow`, `read_allow`, `write_deny`) inherit the parent's values when the child's list is empty; a non-empty child list fully replaces the parent's. Inheritance depth is bounded at 3 levels. Circular inheritance is detected and rejected at profile load time.
 
 #### Enforcement Architecture
 
@@ -936,6 +939,9 @@ behavioral_policy:
 ```
 puzzlectl -- Agent Guardrail Management Tool
 
+WORKFLOW:
+  puzzlectl run --profile=<name> [--base=<dir>] [--auto-commit|--auto-rollback] [--no-diff] -- <command...>
+
 BRANCH MANAGEMENT:
   puzzlectl branch list [--state=active|reviewing|all]
   puzzlectl branch inspect <branch_id>
@@ -955,10 +961,12 @@ PROFILE MANAGEMENT:
   puzzlectl profile show <profile_name>
   puzzlectl profile validate <profile_file>
   puzzlectl profile test <profile_name> --changeset=<file>
+  puzzlectl profile init [--name <name>] [--extends <parent>] [--network-mode <mode>] [--out <file>] [--non-interactive]
 
 POLICY MANAGEMENT:
   puzzlectl policy reload
   puzzlectl policy test <policy_file> --input=<json_file>
+  puzzlectl policy add-rule [--deny-path <glob>] [--max-file-size <bytes>] [--deny-extension <exts>] [--max-files <n>] [--severity <level>] [--dry-run]
 
 AUDIT:
   puzzlectl audit list [--agent=<id>] [--since=<timestamp>]
@@ -1673,6 +1681,7 @@ otel_service_name = puzzled
   "properties": {
     "profile": { "type": "string", "pattern": "^[a-z][a-z0-9-]{0,62}$" },
     "version": { "type": "integer", "minimum": 1 },
+    "extends": { "type": "string", "pattern": "^[a-z][a-z0-9-]{0,62}$", "description": "Parent profile name for inheritance (max depth 3, cycle detection enforced)" },
     "filesystem": {
       "type": "object",
       "properties": {
