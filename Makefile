@@ -70,7 +70,7 @@ endef
 .PHONY: install install-bin install-config install-policies uninstall
 .PHONY: install-selinux install-systemd install-dbus install-man
 .PHONY: dev-setup dev-start dev-stop
-.PHONY: srpm rpm-lint
+.PHONY: srpm srpm-all rpm rpm-lint
 .PHONY: docs man
 .PHONY: clean clean-all distclean
 .PHONY: help version check-deps ci
@@ -292,6 +292,41 @@ dev-stop:
 srpm:
 	$(MAKE) -C .copr srpm
 
+## Build all source RPMs for local development
+srpm-all:
+	packaging/build-srpm.sh
+
+## Build binary RPMs locally via mock
+rpm: srpm-all
+	@FEDORA_VER=$$(. /etc/os-release 2>/dev/null && echo "$${VERSION_ID}"); \
+	if [ -z "$$FEDORA_VER" ] || [ "$$(. /etc/os-release 2>/dev/null && echo "$$ID")" != "fedora" ]; then \
+		FEDORA_VER=42; \
+		echo "Not on Fedora — using fedora-$$FEDORA_VER mock profile"; \
+	fi; \
+	ARCH=$$(uname -m); \
+	MOCK_ROOT="fedora-$${FEDORA_VER}-$${ARCH}"; \
+	echo "=== Building RPMs with mock ($$MOCK_ROOT) ==="; \
+	mkdir -p packaging/rpms; \
+	FAILED=""; \
+	for srpm in packaging/srpms/*.src.rpm; do \
+		echo "--- mock: $$srpm ---"; \
+		if mock -r "$$MOCK_ROOT" --enable-network --rebuild "$$srpm" --resultdir=packaging/rpms/; then \
+			echo "--- OK: $$srpm ---"; \
+		else \
+			echo "--- FAILED: $$srpm ---"; \
+			FAILED="$$FAILED $$srpm"; \
+		fi; \
+	done; \
+	echo ""; \
+	echo "=== RPMs built ==="; \
+	ls -1 packaging/rpms/*.rpm 2>/dev/null || true; \
+	if [ -n "$$FAILED" ]; then \
+		echo ""; \
+		echo "=== FAILED builds ==="; \
+		for f in $$FAILED; do echo "  $$f"; done; \
+		exit 1; \
+	fi
+
 ## Lint RPM spec files with rpmlint
 rpm-lint:
 	rpmlint packaging/*.spec
@@ -346,6 +381,7 @@ check-deps:
 	@command -v llvm-strip >/dev/null 2>&1 && echo "  [ok] llvm-strip" || echo "  [MISSING] llvm-strip (needed for BPF)"
 	@command -v cargo-deny >/dev/null 2>&1 && echo "  [ok] cargo-deny" || echo "  [MISSING] cargo-deny (optional, for 'make deny')"
 	@command -v rpmlint  >/dev/null 2>&1 && echo "  [ok] rpmlint"  || echo "  [MISSING] rpmlint (optional, for 'make rpm-lint')"
+	@command -v mock     >/dev/null 2>&1 && echo "  [ok] mock"     || echo "  [MISSING] mock (optional, for 'make rpm')"
 	@command -v podman   >/dev/null 2>&1 && echo "  [ok] podman"   || echo "  [MISSING] podman (optional, for container targets)"
 	@command -v semodule >/dev/null 2>&1 && echo "  [ok] semodule" || echo "  [MISSING] semodule (optional, for SELinux targets)"
 	@echo "Done."
@@ -399,7 +435,9 @@ help:
 	@printf "  $(GREEN)make dev-stop$(RESET)         Stop dev puzzled instance $(YELLOW)[requires root]$(RESET)\n"
 	@echo ""
 	@printf "$(CYAN)Packaging:$(RESET)\n"
-	@printf "  $(GREEN)make srpm$(RESET)             Build source RPM\n"
+	@printf "  $(GREEN)make srpm$(RESET)             Build source RPM (single, via .copr/Makefile)\n"
+	@printf "  $(GREEN)make srpm-all$(RESET)         Build all source RPMs for local development\n"
+	@printf "  $(GREEN)make rpm$(RESET)              Build binary RPMs locally via mock\n"
 	@printf "  $(GREEN)make rpm-lint$(RESET)          Lint RPM spec files\n"
 	@echo ""
 	@printf "$(CYAN)Documentation:$(RESET)\n"

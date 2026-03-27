@@ -59,6 +59,8 @@ D-Bus, and enforces containment that is irrevocable by the agent process.
 
 %prep
 %autosetup -n %{source_name}
+# regorus build.rs requires git rev-parse HEAD (opa-runtime feature)
+git init -q && git add -A && git -c user.name=build -c user.email=build@rpm commit -q -m "rpm build" --allow-empty
 
 %build
 cargo build --release --bin puzzled
