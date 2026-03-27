@@ -193,11 +193,12 @@ jobs:
 
           # D-Bus daemon installed via system dependencies step above
 
-          # Create required directories
-          mkdir -p /run/dbus /var/lib/puzzled/branches/wal /run/puzzled /etc/puzzled/profiles /etc/puzzled/policies /etc/dbus-1/system.d
+          # Create required directories (need sudo on ubuntu-latest)
+          sudo mkdir -p /run/dbus /var/lib/puzzled/branches/wal /run/puzzled /etc/puzzled/profiles /etc/puzzled/policies /etc/dbus-1/system.d
+          sudo chmod 777 /var/lib/puzzled/branches/wal /run/puzzled /etc/puzzled/profiles /etc/puzzled/policies
 
           # Install D-Bus policy
-          cat > /etc/dbus-1/system.d/org.lobstertrap.PuzzlePod1.conf << 'DBUS'
+          sudo tee /etc/dbus-1/system.d/org.lobstertrap.PuzzlePod1.conf > /dev/null << 'DBUS'
           <!DOCTYPE busconfig PUBLIC "-//freedesktop//DTD D-BUS Bus Configuration 1.0//EN"
            "http://www.freedesktop.org/standards/dbus/1.0/busconfig.dtd">
           <busconfig>
@@ -215,9 +216,9 @@ jobs:
 
           # Start D-Bus system bus
           export DBUS_SYSTEM_BUS_ADDRESS="unix:path=/run/dbus/system_bus_socket"
-          dbus-daemon --config-file=/usr/share/dbus-1/system.conf --fork --print-pid --address="$DBUS_SYSTEM_BUS_ADDRESS" 2>&1 || {
+          sudo dbus-daemon --config-file=/usr/share/dbus-1/system.conf --fork --print-pid --address="$DBUS_SYSTEM_BUS_ADDRESS" 2>&1 || {
             echo "dbus-daemon --system failed, trying manual start..."
-            dbus-daemon --fork --print-pid --address="$DBUS_SYSTEM_BUS_ADDRESS" --auth=EXTERNAL 2>&1 || true
+            sudo dbus-daemon --fork --print-pid --address="$DBUS_SYSTEM_BUS_ADDRESS" --auth=EXTERNAL 2>&1 || true
           }
           sleep 1
 
@@ -226,7 +227,7 @@ jobs:
           cp policies/rules/*.rego /etc/puzzled/policies/ 2>/dev/null || true
 
           # Write minimal puzzled config
-          cat > /etc/puzzled/puzzled.conf << 'CONF'
+          sudo tee /etc/puzzled/puzzled.conf > /dev/null << 'CONF'
           branch_root: /var/lib/puzzled/branches
           profiles_dir: /etc/puzzled/profiles
           policies_dir: /etc/puzzled/policies
@@ -256,35 +257,35 @@ jobs:
           echo "=== Building puzzled ==="
           cargo build -p puzzled
 
-          # Start puzzled in background
+          # Start puzzled in background (needs sudo for system bus)
           echo "=== Starting puzzled ==="
-          RUST_LOG=puzzled=warn ./target/debug/puzzled &
+          sudo RUST_LOG=puzzled=warn ./target/debug/puzzled &
           PUZZLED_PID=$!
 
           # Wait for D-Bus registration (up to 10 seconds)
           for i in $(seq 1 20); do
-            if dbus-send --system --dest=org.lobstertrap.PuzzlePod1 --print-reply /org/lobstertrap/PuzzlePod1/Manager org.lobstertrap.PuzzlePod1.Manager.ListBranches >/dev/null 2>&1; then
+            if sudo dbus-send --system --dest=org.lobstertrap.PuzzlePod1 --print-reply /org/lobstertrap/PuzzlePod1/Manager org.lobstertrap.PuzzlePod1.Manager.ListBranches >/dev/null 2>&1; then
               echo "puzzled registered on D-Bus (PID $PUZZLED_PID)"
               break
             fi
             sleep 0.5
           done
 
-          if ! dbus-send --system --dest=org.lobstertrap.PuzzlePod1 --print-reply /org/lobstertrap/PuzzlePod1/Manager org.lobstertrap.PuzzlePod1.Manager.ListBranches >/dev/null 2>&1; then
+          if ! sudo dbus-send --system --dest=org.lobstertrap.PuzzlePod1 --print-reply /org/lobstertrap/PuzzlePod1/Manager org.lobstertrap.PuzzlePod1.Manager.ListBranches >/dev/null 2>&1; then
             echo "ERROR: puzzled failed to register on D-Bus within 10s"
-            kill $PUZZLED_PID 2>/dev/null || true
+            sudo kill $PUZZLED_PID 2>/dev/null || true
             exit 1
           fi
 
           # Run live D-Bus integration tests
           echo "=== Suite — Live D-Bus Integration (26 tests) ==="
           set +e
-          cargo test -p puzzled --test live_dbus_integration -- --test-threads=1
+          sudo -E cargo test -p puzzled --test live_dbus_integration -- --test-threads=1
           TEST_RESULT=$?
           set -e
 
           # Stop puzzled
-          kill $PUZZLED_PID 2>/dev/null || true
+          sudo kill $PUZZLED_PID 2>/dev/null || true
           wait $PUZZLED_PID 2>/dev/null || true
           echo "puzzled stopped"
 
