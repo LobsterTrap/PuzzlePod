@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 //! Audit event log viewer.
 
 use ratatui::{

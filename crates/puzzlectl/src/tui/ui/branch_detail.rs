@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 //! Branch detail view: metadata sidebar + tabbed content.
 
 use ratatui::{

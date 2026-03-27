@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 //! Cyberpunk purple/magenta theme system for PuzzlePod TUI.
 //!
 //! Supports auto-detection of terminal dark/light mode via terminal-colorsaurus,

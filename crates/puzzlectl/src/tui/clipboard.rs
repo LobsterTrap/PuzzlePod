@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 //! OSC 52 clipboard support for PuzzlePod TUI.
 //!
 //! Copies text to the system clipboard via the OSC 52 escape sequence,

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 //! UI screen router and shared chrome (title bar, nav bar, status bar).
 
 pub mod audit_log;

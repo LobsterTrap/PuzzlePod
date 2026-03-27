@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 //! Credential list table for the dashboard tab.
 
 use ratatui::{

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 //! Governance review: diff display with approve/reject actions.
 
 use ratatui::{

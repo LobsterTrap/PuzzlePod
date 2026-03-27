@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 //! Branch profile/settings read-only display.
 
 use ratatui::{

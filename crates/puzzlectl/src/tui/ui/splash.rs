@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 //! Splash screen with ASCII art logo.
 
 use ratatui::{

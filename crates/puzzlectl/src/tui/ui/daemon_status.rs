@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 //! Daemon status panel for the dashboard.
 
 use ratatui::{

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 //! Event handling for PuzzlePod TUI.
 //!
 //! MPSC channel-based event system supporting terminal events, periodic ticks,

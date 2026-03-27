@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 //! Application state for PuzzlePod TUI.
 //!
 //! Centralizes all TUI state: screens, navigation, branch data, form state,
