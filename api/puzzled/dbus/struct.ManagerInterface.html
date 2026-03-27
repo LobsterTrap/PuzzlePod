@@ -21,7 +21,7 @@ flooding D-Bus subscribers during sustained anomalous behavior.</p>
 </div><span id="structfield.trust_manager" class="structfield section-header"><a href="#structfield.trust_manager" class="anchor field">§</a><code>trust_manager: <a class="struct" href="https://doc.rust-lang.org/1.94.1/alloc/sync/struct.Arc.html" title="struct alloc::sync::Arc">Arc</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.94.1/std/sync/poison/mutex/struct.Mutex.html" title="struct std::sync::poison::mutex::Mutex">Mutex</a>&lt;<a class="struct" href="../trust/struct.TrustManager.html" title="struct puzzled::trust::TrustManager">TrustManager</a>&gt;&gt;</code></span><div class="docblock"><p>§4.1: Trust manager for per-UID trust scoring and behavioral baselines.</p>
 </div><span id="structfield.provenance_store" class="structfield section-header"><a href="#structfield.provenance_store" class="anchor field">§</a><code>provenance_store: <a class="struct" href="https://doc.rust-lang.org/1.94.1/alloc/sync/struct.Arc.html" title="struct alloc::sync::Arc">Arc</a>&lt;<a class="struct" href="../provenance/struct.ProvenanceStore.html" title="struct puzzled::provenance::ProvenanceStore">ProvenanceStore</a>&gt;</code></span><div class="docblock"><p>§4.3: Provenance store for per-branch causal chain records.</p>
 </div><span id="structfield.identity_manager" class="structfield section-header"><a href="#structfield.identity_manager" class="anchor field">§</a><code>identity_manager: <a class="struct" href="https://doc.rust-lang.org/1.94.1/alloc/sync/struct.Arc.html" title="struct alloc::sync::Arc">Arc</a>&lt;<a class="struct" href="../identity/struct.IdentityManager.html" title="struct puzzled::identity::IdentityManager">IdentityManager</a>&gt;</code></span><div class="docblock"><p>§4.5: Identity manager for JWT-SVID issuance (requires ima feature).</p>
-</div><h2 id="implementations" class="section-header">Implementations<a href="#implementations" class="anchor">§</a></h2><div id="implementations-list"><details class="toggle implementors-toggle" open><summary><section id="impl-ManagerInterface" class="impl"><a class="src rightside" href="../../src/puzzled/dbus.rs.html#150-3646">Source</a><a href="#impl-ManagerInterface" class="anchor">§</a><h3 class="code-header">impl <a class="struct" href="struct.ManagerInterface.html" title="struct puzzled::dbus::ManagerInterface">ManagerInterface</a></h3></section></summary><div class="impl-items"><details class="toggle method-toggle" open><summary><section id="method.create_branch" class="method"><a class="src rightside" href="../../src/puzzled/dbus.rs.html#153-332">Source</a><h4 class="code-header">async fn <a href="#method.create_branch" class="fn">create_branch</a>(
+</div><h2 id="implementations" class="section-header">Implementations<a href="#implementations" class="anchor">§</a></h2><div id="implementations-list"><details class="toggle implementors-toggle" open><summary><section id="impl-ManagerInterface" class="impl"><a class="src rightside" href="../../src/puzzled/dbus.rs.html#150-3630">Source</a><a href="#impl-ManagerInterface" class="anchor">§</a><h3 class="code-header">impl <a class="struct" href="struct.ManagerInterface.html" title="struct puzzled::dbus::ManagerInterface">ManagerInterface</a></h3></section></summary><div class="impl-items"><details class="toggle method-toggle" open><summary><section id="method.create_branch" class="method"><a class="src rightside" href="../../src/puzzled/dbus.rs.html#153-332">Source</a><h4 class="code-header">async fn <a href="#method.create_branch" class="fn">create_branch</a>(
     &amp;self,
     header: Header&lt;'_&gt;,
     connection: &amp;Connection,
@@ -64,30 +64,30 @@ compatibility.</p>
     connection: &amp;Connection,
     branch_id: &amp;<a class="primitive" href="https://doc.rust-lang.org/1.94.1/std/primitive.str.html">str</a>,
 ) -&gt; Result&lt;<a class="struct" href="https://doc.rust-lang.org/1.94.1/alloc/string/struct.String.html" title="struct alloc::string::String">String</a>&gt;</h4></section></summary><div class="docblock"><p>Inspect a branch, returning its metadata as JSON.</p>
-</div></details><details class="toggle method-toggle" open><summary><section id="method.list_branches" class="method"><a class="src rightside" href="../../src/puzzled/dbus.rs.html#894-913">Source</a><h4 class="code-header">async fn <a href="#method.list_branches" class="fn">list_branches</a>(
+</div></details><details class="toggle method-toggle" open><summary><section id="method.list_branches" class="method"><a class="src rightside" href="../../src/puzzled/dbus.rs.html#894-912">Source</a><h4 class="code-header">async fn <a href="#method.list_branches" class="fn">list_branches</a>(
     &amp;self,
     header: Header&lt;'_&gt;,
     connection: &amp;Connection,
 ) -&gt; Result&lt;<a class="struct" href="https://doc.rust-lang.org/1.94.1/alloc/string/struct.String.html" title="struct alloc::string::String">String</a>&gt;</h4></section></summary><div class="docblock"><p>List all branches as a JSON array (filtered by caller UID unless root).</p>
-</div></details><details class="toggle method-toggle" open><summary><section id="method.diff_branch" class="method"><a class="src rightside" href="../../src/puzzled/dbus.rs.html#916-937">Source</a><h4 class="code-header">async fn <a href="#method.diff_branch" class="fn">diff_branch</a>(
+</div></details><details class="toggle method-toggle" open><summary><section id="method.diff_branch" class="method"><a class="src rightside" href="../../src/puzzled/dbus.rs.html#915-936">Source</a><h4 class="code-header">async fn <a href="#method.diff_branch" class="fn">diff_branch</a>(
     &amp;self,
     header: Header&lt;'_&gt;,
     connection: &amp;Connection,
     branch_id: &amp;<a class="primitive" href="https://doc.rust-lang.org/1.94.1/std/primitive.str.html">str</a>,
 ) -&gt; Result&lt;<a class="struct" href="https://doc.rust-lang.org/1.94.1/alloc/string/struct.String.html" title="struct alloc::string::String">String</a>&gt;</h4></section></summary><div class="docblock"><p>Generate a diff for a branch, returning the changeset as JSON.</p>
-</div></details><details class="toggle method-toggle" open><summary><section id="method.list_agents" class="method"><a class="src rightside" href="../../src/puzzled/dbus.rs.html#940-965">Source</a><h4 class="code-header">async fn <a href="#method.list_agents" class="fn">list_agents</a>(
+</div></details><details class="toggle method-toggle" open><summary><section id="method.list_agents" class="method"><a class="src rightside" href="../../src/puzzled/dbus.rs.html#939-964">Source</a><h4 class="code-header">async fn <a href="#method.list_agents" class="fn">list_agents</a>(
     &amp;self,
     header: Header&lt;'_&gt;,
     connection: &amp;Connection,
 ) -&gt; Result&lt;<a class="struct" href="https://doc.rust-lang.org/1.94.1/alloc/string/struct.String.html" title="struct alloc::string::String">String</a>&gt;</h4></section></summary><div class="docblock"><p>List active agents (branches in Active state) as JSON.</p>
-</div></details><details class="toggle method-toggle" open><summary><section id="method.kill_agent" class="method"><a class="src rightside" href="../../src/puzzled/dbus.rs.html#970-1040">Source</a><h4 class="code-header">async fn <a href="#method.kill_agent" class="fn">kill_agent</a>(
+</div></details><details class="toggle method-toggle" open><summary><section id="method.kill_agent" class="method"><a class="src rightside" href="../../src/puzzled/dbus.rs.html#969-1039">Source</a><h4 class="code-header">async fn <a href="#method.kill_agent" class="fn">kill_agent</a>(
     &amp;self,
     header: Header&lt;'_&gt;,
     connection: &amp;Connection,
     branch_id: &amp;<a class="primitive" href="https://doc.rust-lang.org/1.94.1/std/primitive.str.html">str</a>,
 ) -&gt; Result&lt;<a class="primitive" href="https://doc.rust-lang.org/1.94.1/std/primitive.bool.html">bool</a>&gt;</h4></section></summary><div class="docblock"><p>Kill an active agent and roll back its branch.</p>
 <p>M-db5: Emits an audit event with the caller UID.</p>
-</div></details><details class="toggle method-toggle" open><summary><section id="method.approve_branch" class="method"><a class="src rightside" href="../../src/puzzled/dbus.rs.html#1046-1187">Source</a><h4 class="code-header">async fn <a href="#method.approve_branch" class="fn">approve_branch</a>(
+</div></details><details class="toggle method-toggle" open><summary><section id="method.approve_branch" class="method"><a class="src rightside" href="../../src/puzzled/dbus.rs.html#1045-1186">Source</a><h4 class="code-header">async fn <a href="#method.approve_branch" class="fn">approve_branch</a>(
     &amp;self,
     header: Header&lt;'_&gt;,
     connection: &amp;Connection,
@@ -95,7 +95,7 @@ compatibility.</p>
 ) -&gt; Result&lt;<a class="struct" href="https://doc.rust-lang.org/1.94.1/alloc/string/struct.String.html" title="struct alloc::string::String">String</a>&gt;</h4></section></summary><div class="docblock"><p>H-10: Approve a branch in GovernanceReview state.</p>
 <p>Root-only (UID 0). Transitions the branch from GovernanceReview to Committed.
 Returns a JSON-serialized CommitResult.</p>
-</div></details><details class="toggle method-toggle" open><summary><section id="method.reject_branch" class="method"><a class="src rightside" href="../../src/puzzled/dbus.rs.html#1193-1309">Source</a><h4 class="code-header">async fn <a href="#method.reject_branch" class="fn">reject_branch</a>(
+</div></details><details class="toggle method-toggle" open><summary><section id="method.reject_branch" class="method"><a class="src rightside" href="../../src/puzzled/dbus.rs.html#1192-1308">Source</a><h4 class="code-header">async fn <a href="#method.reject_branch" class="fn">reject_branch</a>(
     &amp;self,
     header: Header&lt;'_&gt;,
     connection: &amp;Connection,
@@ -104,7 +104,7 @@ Returns a JSON-serialized CommitResult.</p>
 ) -&gt; Result&lt;<a class="primitive" href="https://doc.rust-lang.org/1.94.1/std/primitive.bool.html">bool</a>&gt;</h4></section></summary><div class="docblock"><p>H-10: Reject a branch in GovernanceReview state.</p>
 <p>Root-only (UID 0). Transitions the branch from GovernanceReview to RolledBack.
 Returns true on success.</p>
-</div></details><details class="toggle method-toggle" open><summary><section id="method.unregister_agent" class="method"><a class="src rightside" href="../../src/puzzled/dbus.rs.html#1316-1405">Source</a><h4 class="code-header">async fn <a href="#method.unregister_agent" class="fn">unregister_agent</a>(
+</div></details><details class="toggle method-toggle" open><summary><section id="method.unregister_agent" class="method"><a class="src rightside" href="../../src/puzzled/dbus.rs.html#1315-1404">Source</a><h4 class="code-header">async fn <a href="#method.unregister_agent" class="fn">unregister_agent</a>(
     &amp;self,
     header: Header&lt;'_&gt;,
     connection: &amp;Connection,
@@ -113,21 +113,21 @@ Returns true on success.</p>
 <p>Calls rollback with reason “unregistered”.
 Y6: Full cross-module wiring — matches rollback_branch’s pattern with
 audit store event, provenance recording, and provenance cleanup.</p>
-</div></details><details class="toggle method-toggle" open><summary><section id="method.agent_info" class="method"><a class="src rightside" href="../../src/puzzled/dbus.rs.html#1410-1441">Source</a><h4 class="code-header">async fn <a href="#method.agent_info" class="fn">agent_info</a>(
+</div></details><details class="toggle method-toggle" open><summary><section id="method.agent_info" class="method"><a class="src rightside" href="../../src/puzzled/dbus.rs.html#1409-1440">Source</a><h4 class="code-header">async fn <a href="#method.agent_info" class="fn">agent_info</a>(
     &amp;self,
     header: Header&lt;'_&gt;,
     connection: &amp;Connection,
     branch_id: &amp;<a class="primitive" href="https://doc.rust-lang.org/1.94.1/std/primitive.str.html">str</a>,
 ) -&gt; Result&lt;<a class="struct" href="https://doc.rust-lang.org/1.94.1/alloc/string/struct.String.html" title="struct alloc::string::String">String</a>&gt;</h4></section></summary><div class="docblock"><p>H-13: Return agent info as JSON.</p>
 <p>Returns JSON with pid, state, profile, created_at, uid, cgroup_path.</p>
-</div></details><details class="toggle method-toggle" open><summary><section id="method.reload_policy" class="method"><a class="src rightside" href="../../src/puzzled/dbus.rs.html#1446-1471">Source</a><h4 class="code-header">async fn <a href="#method.reload_policy" class="fn">reload_policy</a>(
+</div></details><details class="toggle method-toggle" open><summary><section id="method.reload_policy" class="method"><a class="src rightside" href="../../src/puzzled/dbus.rs.html#1445-1470">Source</a><h4 class="code-header">async fn <a href="#method.reload_policy" class="fn">reload_policy</a>(
     &amp;self,
     header: Header&lt;'_&gt;,
     connection: &amp;Connection,
 ) -&gt; Result&lt;(<a class="primitive" href="https://doc.rust-lang.org/1.94.1/std/primitive.bool.html">bool</a>, <a class="struct" href="https://doc.rust-lang.org/1.94.1/alloc/string/struct.String.html" title="struct alloc::string::String">String</a>)&gt;</h4></section></summary><div class="docblock"><p>Reload OPA/Rego policy bundles from disk.
 H18: Only root (UID 0) is allowed to reload policies.
 L-db2: Returns (bool, String) tuple with success status and detail message.</p>
-</div></details><details class="toggle method-toggle" open><summary><section id="method.query_audit_events" class="method"><a class="src rightside" href="../../src/puzzled/dbus.rs.html#1481-1536">Source</a><h4 class="code-header">async fn <a href="#method.query_audit_events" class="fn">query_audit_events</a>(
+</div></details><details class="toggle method-toggle" open><summary><section id="method.query_audit_events" class="method"><a class="src rightside" href="../../src/puzzled/dbus.rs.html#1480-1520">Source</a><h4 class="code-header">async fn <a href="#method.query_audit_events" class="fn">query_audit_events</a>(
     &amp;self,
     header: Header&lt;'_&gt;,
     connection: &amp;Connection,
@@ -138,7 +138,7 @@ L-db2: Returns (bool, String) tuple with success status and detail message.</p>
 event details matches their own UID. Root (UID 0) sees all events.
 Events without a <code>uid</code> field (e.g., policy_reloaded, wal_recovery) are
 only visible to root.</p>
-</div></details><details class="toggle method-toggle" open><summary><section id="method.export_audit_events" class="method"><a class="src rightside" href="../../src/puzzled/dbus.rs.html#1542-1576">Source</a><h4 class="code-header">async fn <a href="#method.export_audit_events" class="fn">export_audit_events</a>(
+</div></details><details class="toggle method-toggle" open><summary><section id="method.export_audit_events" class="method"><a class="src rightside" href="../../src/puzzled/dbus.rs.html#1526-1560">Source</a><h4 class="code-header">async fn <a href="#method.export_audit_events" class="fn">export_audit_events</a>(
     &amp;self,
     header: Header&lt;'_&gt;,
     connection: &amp;Connection,
@@ -146,7 +146,7 @@ only visible to root.</p>
 ) -&gt; Result&lt;<a class="struct" href="https://doc.rust-lang.org/1.94.1/alloc/string/struct.String.html" title="struct alloc::string::String">String</a>&gt;</h4></section></summary><div class="docblock"><p>Export audit events in the specified format (json or csv).</p>
 <p>H9: Restricted to root (UID 0) only — export may contain events from
 all users and branches.</p>
-</div></details><details class="toggle method-toggle" open><summary><section id="method.verify_attestation_chain" class="method"><a class="src rightside" href="../../src/puzzled/dbus.rs.html#1583-1733">Source</a><h4 class="code-header">async fn <a href="#method.verify_attestation_chain" class="fn">verify_attestation_chain</a>(
+</div></details><details class="toggle method-toggle" open><summary><section id="method.verify_attestation_chain" class="method"><a class="src rightside" href="../../src/puzzled/dbus.rs.html#1567-1717">Source</a><h4 class="code-header">async fn <a href="#method.verify_attestation_chain" class="fn">verify_attestation_chain</a>(
     &amp;self,
     header: Header&lt;'_&gt;,
     connection: &amp;Connection,
@@ -154,14 +154,14 @@ all users and branches.</p>
 ) -&gt; Result&lt;<a class="struct" href="https://doc.rust-lang.org/1.94.1/alloc/string/struct.String.html" title="struct alloc::string::String">String</a>&gt;</h4></section></summary><div class="docblock"><p>§3.1: Verify the attestation chain for a branch.
 Returns JSON with verification results (chain length, signature validity, etc.).
 R1: Root-only — exports full audit chain data.</p>
-</div></details><details class="toggle method-toggle" open><summary><section id="method.get_inclusion_proof" class="method"><a class="src rightside" href="../../src/puzzled/dbus.rs.html#1737-1757">Source</a><h4 class="code-header">async fn <a href="#method.get_inclusion_proof" class="fn">get_inclusion_proof</a>(
+</div></details><details class="toggle method-toggle" open><summary><section id="method.get_inclusion_proof" class="method"><a class="src rightside" href="../../src/puzzled/dbus.rs.html#1721-1741">Source</a><h4 class="code-header">async fn <a href="#method.get_inclusion_proof" class="fn">get_inclusion_proof</a>(
     &amp;self,
     header: Header&lt;'_&gt;,
     connection: &amp;Connection,
     leaf_index: <a class="primitive" href="https://doc.rust-lang.org/1.94.1/std/primitive.u64.html">u64</a>,
 ) -&gt; Result&lt;<a class="struct" href="https://doc.rust-lang.org/1.94.1/alloc/string/struct.String.html" title="struct alloc::string::String">String</a>&gt;</h4></section></summary><div class="docblock"><p>§3.1: Get Merkle inclusion proof for an audit event by leaf index.
 R1: Requires authentication.</p>
-</div></details><details class="toggle method-toggle" open><summary><section id="method.get_consistency_proof" class="method"><a class="src rightside" href="../../src/puzzled/dbus.rs.html#1761-1786">Source</a><h4 class="code-header">async fn <a href="#method.get_consistency_proof" class="fn">get_consistency_proof</a>(
+</div></details><details class="toggle method-toggle" open><summary><section id="method.get_consistency_proof" class="method"><a class="src rightside" href="../../src/puzzled/dbus.rs.html#1745-1770">Source</a><h4 class="code-header">async fn <a href="#method.get_consistency_proof" class="fn">get_consistency_proof</a>(
     &amp;self,
     header: Header&lt;'_&gt;,
     connection: &amp;Connection,
@@ -169,7 +169,7 @@ R1: Requires authentication.</p>
     new_size: <a class="primitive" href="https://doc.rust-lang.org/1.94.1/std/primitive.u64.html">u64</a>,
 ) -&gt; Result&lt;<a class="struct" href="https://doc.rust-lang.org/1.94.1/alloc/string/struct.String.html" title="struct alloc::string::String">String</a>&gt;</h4></section></summary><div class="docblock"><p>§3.1: Get Merkle consistency proof between two tree sizes.
 R1: Requires authentication.</p>
-</div></details><details class="toggle method-toggle" open><summary><section id="method.export_attestation_bundle" class="method"><a class="src rightside" href="../../src/puzzled/dbus.rs.html#1792-1933">Source</a><h4 class="code-header">async fn <a href="#method.export_attestation_bundle" class="fn">export_attestation_bundle</a>(
+</div></details><details class="toggle method-toggle" open><summary><section id="method.export_attestation_bundle" class="method"><a class="src rightside" href="../../src/puzzled/dbus.rs.html#1776-1917">Source</a><h4 class="code-header">async fn <a href="#method.export_attestation_bundle" class="fn">export_attestation_bundle</a>(
     &amp;self,
     header: Header&lt;'_&gt;,
     connection: &amp;Connection,
@@ -178,13 +178,13 @@ R1: Requires authentication.</p>
 Returns a JSON bundle containing: public_key, merkle_root, merkle_inclusion_proofs[],
 attestation records, and tree metadata — sufficient for offline verification.
 R1: Root-only — exports full audit records and signing keys.</p>
-</div></details><details class="toggle method-toggle" open><summary><section id="method.get_attestation_public_key" class="method"><a class="src rightside" href="../../src/puzzled/dbus.rs.html#1937-1955">Source</a><h4 class="code-header">async fn <a href="#method.get_attestation_public_key" class="fn">get_attestation_public_key</a>(
+</div></details><details class="toggle method-toggle" open><summary><section id="method.get_attestation_public_key" class="method"><a class="src rightside" href="../../src/puzzled/dbus.rs.html#1921-1939">Source</a><h4 class="code-header">async fn <a href="#method.get_attestation_public_key" class="fn">get_attestation_public_key</a>(
     &amp;self,
     header: Header&lt;'_&gt;,
     connection: &amp;Connection,
 ) -&gt; Result&lt;<a class="struct" href="https://doc.rust-lang.org/1.94.1/alloc/string/struct.String.html" title="struct alloc::string::String">String</a>&gt;</h4></section></summary><div class="docblock"><p>§3.1: Get the current attestation public key (hex-encoded Ed25519).
 R1: Requires authentication (public key is non-sensitive but access must be auditable).</p>
-</div></details><details class="toggle method-toggle" open><summary><section id="method.store_credential" class="method"><a class="src rightside" href="../../src/puzzled/dbus.rs.html#1965-2089">Source</a><h4 class="code-header">async fn <a href="#method.store_credential" class="fn">store_credential</a>(
+</div></details><details class="toggle method-toggle" open><summary><section id="method.store_credential" class="method"><a class="src rightside" href="../../src/puzzled/dbus.rs.html#1949-2073">Source</a><h4 class="code-header">async fn <a href="#method.store_credential" class="fn">store_credential</a>(
     &amp;self,
     header: Header&lt;'_&gt;,
     connection: &amp;Connection,
@@ -198,7 +198,7 @@ credential_type: type (e.g., “api_key”, “oauth_bearer”)
 value_source: credential value source (“file:/path” reads from file, otherwise literal)
 config_json: JSON with allowed_profiles, target_domains, injection method, ttl, etc.
 Returns: true on success</p>
-</div></details><details class="toggle method-toggle" open><summary><section id="method.generate_seccomp_profile" class="method"><a class="src rightside" href="../../src/puzzled/dbus.rs.html#2099-2139">Source</a><h4 class="code-header">async fn <a href="#method.generate_seccomp_profile" class="fn">generate_seccomp_profile</a>(
+</div></details><details class="toggle method-toggle" open><summary><section id="method.generate_seccomp_profile" class="method"><a class="src rightside" href="../../src/puzzled/dbus.rs.html#2083-2123">Source</a><h4 class="code-header">async fn <a href="#method.generate_seccomp_profile" class="fn">generate_seccomp_profile</a>(
     &amp;self,
     header: Header&lt;'_&gt;,
     connection: &amp;Connection,
@@ -208,7 +208,7 @@ Returns: true on success</p>
 The profile includes SCMP_ACT_NOTIFY for execve/connect/bind,
 static deny for escape-vector syscalls, and the listenerPath
 for puzzled’s seccomp notification socket.</p>
-</div></details><details class="toggle method-toggle" open><summary><section id="method.generate_landlock_rules" class="method"><a class="src rightside" href="../../src/puzzled/dbus.rs.html#2145-2187">Source</a><h4 class="code-header">async fn <a href="#method.generate_landlock_rules" class="fn">generate_landlock_rules</a>(
+</div></details><details class="toggle method-toggle" open><summary><section id="method.generate_landlock_rules" class="method"><a class="src rightside" href="../../src/puzzled/dbus.rs.html#2129-2171">Source</a><h4 class="code-header">async fn <a href="#method.generate_landlock_rules" class="fn">generate_landlock_rules</a>(
     &amp;self,
     header: Header&lt;'_&gt;,
     connection: &amp;Connection,
@@ -216,7 +216,7 @@ for puzzled’s seccomp notification socket.</p>
 ) -&gt; Result&lt;<a class="struct" href="https://doc.rust-lang.org/1.94.1/alloc/string/struct.String.html" title="struct alloc::string::String">String</a>&gt;</h4></section></summary><div class="docblock"><p>Generate Landlock rules JSON for a branch.</p>
 <p>Returns the filesystem path to the generated JSON rules file.
 The file is consumed by the puzzle-init shim inside the container.</p>
-</div></details><details class="toggle method-toggle" open><summary><section id="method.attach_governance" class="method"><a class="src rightside" href="../../src/puzzled/dbus.rs.html#2193-2225">Source</a><h4 class="code-header">async fn <a href="#method.attach_governance" class="fn">attach_governance</a>(
+</div></details><details class="toggle method-toggle" open><summary><section id="method.attach_governance" class="method"><a class="src rightside" href="../../src/puzzled/dbus.rs.html#2177-2209">Source</a><h4 class="code-header">async fn <a href="#method.attach_governance" class="fn">attach_governance</a>(
     &amp;self,
     header: Header&lt;'_&gt;,
     connection: &amp;Connection,
@@ -226,13 +226,13 @@ The file is consumed by the puzzle-init shim inside the container.</p>
 ) -&gt; Result&lt;<a class="primitive" href="https://doc.rust-lang.org/1.94.1/std/primitive.bool.html">bool</a>&gt;</h4></section></summary><div class="docblock"><p>Attach governance to a running container (called by OCI hook at createRuntime).</p>
 <p>Registers the container PID with puzzled, starts BPF LSM and fanotify
 monitoring for the branch.</p>
-</div></details><details class="toggle method-toggle" open><summary><section id="method.remove_credential" class="method"><a class="src rightside" href="../../src/puzzled/dbus.rs.html#2228-2261">Source</a><h4 class="code-header">async fn <a href="#method.remove_credential" class="fn">remove_credential</a>(
+</div></details><details class="toggle method-toggle" open><summary><section id="method.remove_credential" class="method"><a class="src rightside" href="../../src/puzzled/dbus.rs.html#2212-2245">Source</a><h4 class="code-header">async fn <a href="#method.remove_credential" class="fn">remove_credential</a>(
     &amp;self,
     header: Header&lt;'_&gt;,
     connection: &amp;Connection,
     credential_name: &amp;<a class="primitive" href="https://doc.rust-lang.org/1.94.1/std/primitive.str.html">str</a>,
 ) -&gt; Result&lt;<a class="primitive" href="https://doc.rust-lang.org/1.94.1/std/primitive.bool.html">bool</a>&gt;</h4></section></summary><div class="docblock"><p>§3.4: Remove a credential by name.</p>
-</div></details><details class="toggle method-toggle" open><summary><section id="method.rotate_credential" class="method"><a class="src rightside" href="../../src/puzzled/dbus.rs.html#2270-2365">Source</a><h4 class="code-header">async fn <a href="#method.rotate_credential" class="fn">rotate_credential</a>(
+</div></details><details class="toggle method-toggle" open><summary><section id="method.rotate_credential" class="method"><a class="src rightside" href="../../src/puzzled/dbus.rs.html#2254-2349">Source</a><h4 class="code-header">async fn <a href="#method.rotate_credential" class="fn">rotate_credential</a>(
     &amp;self,
     header: Header&lt;'_&gt;,
     connection: &amp;Connection,
@@ -244,7 +244,7 @@ monitoring for the branch.</p>
 identifies which branch’s phantom token mappings should be updated after
 rotation. If <code>branch_id</code> is empty, rotation is global (all branches).</p>
 <p>value_source: “file:/path” reads value from file, otherwise treated as literal value.</p>
-</div></details><details class="toggle method-toggle" open><summary><section id="method.list_credentials" class="method"><a class="src rightside" href="../../src/puzzled/dbus.rs.html#2375-2453">Source</a><h4 class="code-header">async fn <a href="#method.list_credentials" class="fn">list_credentials</a>(
+</div></details><details class="toggle method-toggle" open><summary><section id="method.list_credentials" class="method"><a class="src rightside" href="../../src/puzzled/dbus.rs.html#2359-2437">Source</a><h4 class="code-header">async fn <a href="#method.list_credentials" class="fn">list_credentials</a>(
     &amp;self,
     header: Header&lt;'_&gt;,
     connection: &amp;Connection,
@@ -255,7 +255,7 @@ is empty, lists all credentials visible to the caller (filtered by UID).
 The <code>branch_id</code> is used as a profile filter — credentials are filtered
 to those allowed for the branch’s profile.</p>
 <p>Root sees all credentials; non-root sees only credentials allowed for their UID’s profiles.</p>
-</div></details><details class="toggle method-toggle" open><summary><section id="method.provision_credentials" class="method"><a class="src rightside" href="../../src/puzzled/dbus.rs.html#2468-2597">Source</a><h4 class="code-header">async fn <a href="#method.provision_credentials" class="fn">provision_credentials</a>(
+</div></details><details class="toggle method-toggle" open><summary><section id="method.provision_credentials" class="method"><a class="src rightside" href="../../src/puzzled/dbus.rs.html#2452-2581">Source</a><h4 class="code-header">async fn <a href="#method.provision_credentials" class="fn">provision_credentials</a>(
     &amp;self,
     header: Header&lt;'_&gt;,
     connection: &amp;Connection,
@@ -271,7 +271,7 @@ to those allowed for the branch’s profile.</p>
 </ol>
 <p>Called by <code>CreateBranch</code> when the profile has a credentials section,
 or directly by <code>puzzle-podman</code> before <code>podman run</code>.</p>
-</div></details><details class="toggle method-toggle" open><summary><section id="method.revoke_credentials" class="method"><a class="src rightside" href="../../src/puzzled/dbus.rs.html#2605-2639">Source</a><h4 class="code-header">async fn <a href="#method.revoke_credentials" class="fn">revoke_credentials</a>(
+</div></details><details class="toggle method-toggle" open><summary><section id="method.revoke_credentials" class="method"><a class="src rightside" href="../../src/puzzled/dbus.rs.html#2589-2623">Source</a><h4 class="code-header">async fn <a href="#method.revoke_credentials" class="fn">revoke_credentials</a>(
     &amp;self,
     header: Header&lt;'_&gt;,
     connection: &amp;Connection,
@@ -281,7 +281,7 @@ or directly by <code>puzzle-podman</code> before <code>podman run</code>.</p>
 associations for the given branch. Called when a branch is committed,
 rolled back, or destroyed. Phantom tokens for this branch become
 permanently unresolvable.</p>
-</div></details><details class="toggle method-toggle" open><summary><section id="method.unlock_credential" class="method"><a class="src rightside" href="../../src/puzzled/dbus.rs.html#2646-2803">Source</a><h4 class="code-header">async fn <a href="#method.unlock_credential" class="fn">unlock_credential</a>(
+</div></details><details class="toggle method-toggle" open><summary><section id="method.unlock_credential" class="method"><a class="src rightside" href="../../src/puzzled/dbus.rs.html#2630-2787">Source</a><h4 class="code-header">async fn <a href="#method.unlock_credential" class="fn">unlock_credential</a>(
     &amp;self,
     header: Header&lt;'_&gt;,
     connection: &amp;Connection,
@@ -291,14 +291,14 @@ permanently unresolvable.</p>
 <p>Derives AES key via Argon2id from the passphrase, decrypts the credential,
 and stores the plaintext in the secure credential store. The passphrase
 is zeroized immediately after key derivation.</p>
-</div></details><details class="toggle method-toggle" open><summary><section id="method.trigger_governance" class="method"><a class="src rightside" href="../../src/puzzled/dbus.rs.html#2808-2907">Source</a><h4 class="code-header">async fn <a href="#method.trigger_governance" class="fn">trigger_governance</a>(
+</div></details><details class="toggle method-toggle" open><summary><section id="method.trigger_governance" class="method"><a class="src rightside" href="../../src/puzzled/dbus.rs.html#2792-2891">Source</a><h4 class="code-header">async fn <a href="#method.trigger_governance" class="fn">trigger_governance</a>(
     &amp;self,
     header: Header&lt;'_&gt;,
     connection: &amp;Connection,
     branch_id: &amp;<a class="primitive" href="https://doc.rust-lang.org/1.94.1/std/primitive.str.html">str</a>,
 ) -&gt; Result&lt;<a class="struct" href="https://doc.rust-lang.org/1.94.1/alloc/string/struct.String.html" title="struct alloc::string::String">String</a>&gt;</h4></section></summary><div class="docblock"><p>Trigger governance evaluation for a branch (called by OCI hook at poststop).</p>
 <p>Runs the full governance flow: freeze → diff → OPA evaluate → commit/rollback.</p>
-</div></details><details class="toggle method-toggle" open><summary><section id="method.ensure_branch" class="method"><a class="src rightside" href="../../src/puzzled/dbus.rs.html#2914-3018">Source</a><h4 class="code-header">async fn <a href="#method.ensure_branch" class="fn">ensure_branch</a>(
+</div></details><details class="toggle method-toggle" open><summary><section id="method.ensure_branch" class="method"><a class="src rightside" href="../../src/puzzled/dbus.rs.html#2898-3002">Source</a><h4 class="code-header">async fn <a href="#method.ensure_branch" class="fn">ensure_branch</a>(
     &amp;self,
     header: Header&lt;'_&gt;,
     connection: &amp;Connection,
@@ -308,27 +308,27 @@ is zeroized immediately after key derivation.</p>
 returns the existing branch_id if it does.</p>
 <p>Designed for use in Quadlet ExecStartPre to ensure the branch exists
 before container start.</p>
-</div></details><details class="toggle method-toggle" open><summary><section id="method.get_trust_score" class="method"><a class="src rightside" href="../../src/puzzled/dbus.rs.html#3024-3056">Source</a><h4 class="code-header">async fn <a href="#method.get_trust_score" class="fn">get_trust_score</a>(
+</div></details><details class="toggle method-toggle" open><summary><section id="method.get_trust_score" class="method"><a class="src rightside" href="../../src/puzzled/dbus.rs.html#3008-3040">Source</a><h4 class="code-header">async fn <a href="#method.get_trust_score" class="fn">get_trust_score</a>(
     &amp;self,
     header: Header&lt;'_&gt;,
     connection: &amp;Connection,
     uid: <a class="primitive" href="https://doc.rust-lang.org/1.94.1/std/primitive.u32.html">u32</a>,
 ) -&gt; Result&lt;<a class="struct" href="https://doc.rust-lang.org/1.94.1/alloc/string/struct.String.html" title="struct alloc::string::String">String</a>&gt;</h4></section></summary><div class="docblock"><p>Get trust score and level for an agent (by UID).
 Non-root callers can only query their own UID’s trust score.</p>
-</div></details><details class="toggle method-toggle" open><summary><section id="method.get_baseline" class="method"><a class="src rightside" href="../../src/puzzled/dbus.rs.html#3059-3085">Source</a><h4 class="code-header">async fn <a href="#method.get_baseline" class="fn">get_baseline</a>(
+</div></details><details class="toggle method-toggle" open><summary><section id="method.get_baseline" class="method"><a class="src rightside" href="../../src/puzzled/dbus.rs.html#3043-3069">Source</a><h4 class="code-header">async fn <a href="#method.get_baseline" class="fn">get_baseline</a>(
     &amp;self,
     header: Header&lt;'_&gt;,
     connection: &amp;Connection,
     uid: <a class="primitive" href="https://doc.rust-lang.org/1.94.1/std/primitive.u32.html">u32</a>,
 ) -&gt; Result&lt;<a class="struct" href="https://doc.rust-lang.org/1.94.1/alloc/string/struct.String.html" title="struct alloc::string::String">String</a>&gt;</h4></section></summary><div class="docblock"><p>Get behavioral baseline for an agent (by UID).</p>
-</div></details><details class="toggle method-toggle" open><summary><section id="method.reset_trust_score" class="method"><a class="src rightside" href="../../src/puzzled/dbus.rs.html#3088-3113">Source</a><h4 class="code-header">async fn <a href="#method.reset_trust_score" class="fn">reset_trust_score</a>(
+</div></details><details class="toggle method-toggle" open><summary><section id="method.reset_trust_score" class="method"><a class="src rightside" href="../../src/puzzled/dbus.rs.html#3072-3097">Source</a><h4 class="code-header">async fn <a href="#method.reset_trust_score" class="fn">reset_trust_score</a>(
     &amp;self,
     header: Header&lt;'_&gt;,
     connection: &amp;Connection,
     uid: <a class="primitive" href="https://doc.rust-lang.org/1.94.1/std/primitive.u32.html">u32</a>,
     reason: &amp;<a class="primitive" href="https://doc.rust-lang.org/1.94.1/std/primitive.str.html">str</a>,
 ) -&gt; Result&lt;<a class="primitive" href="https://doc.rust-lang.org/1.94.1/std/primitive.bool.html">bool</a>&gt;</h4></section></summary><div class="docblock"><p>Reset trust score to initial value. Requires root (UID 0).</p>
-</div></details><details class="toggle method-toggle" open><summary><section id="method.set_trust_override" class="method"><a class="src rightside" href="../../src/puzzled/dbus.rs.html#3116-3170">Source</a><h4 class="code-header">async fn <a href="#method.set_trust_override" class="fn">set_trust_override</a>(
+</div></details><details class="toggle method-toggle" open><summary><section id="method.set_trust_override" class="method"><a class="src rightside" href="../../src/puzzled/dbus.rs.html#3100-3154">Source</a><h4 class="code-header">async fn <a href="#method.set_trust_override" class="fn">set_trust_override</a>(
     &amp;self,
     header: Header&lt;'_&gt;,
     connection: &amp;Connection,
@@ -336,14 +336,14 @@ Non-root callers can only query their own UID’s trust score.</p>
     level: &amp;<a class="primitive" href="https://doc.rust-lang.org/1.94.1/std/primitive.str.html">str</a>,
     duration_hours: <a class="primitive" href="https://doc.rust-lang.org/1.94.1/std/primitive.u32.html">u32</a>,
 ) -&gt; Result&lt;<a class="primitive" href="https://doc.rust-lang.org/1.94.1/std/primitive.bool.html">bool</a>&gt;</h4></section></summary><div class="docblock"><p>Set a temporary trust level override. Requires root.</p>
-</div></details><details class="toggle method-toggle" open><summary><section id="method.list_trust_history" class="method"><a class="src rightside" href="../../src/puzzled/dbus.rs.html#3173-3203">Source</a><h4 class="code-header">async fn <a href="#method.list_trust_history" class="fn">list_trust_history</a>(
+</div></details><details class="toggle method-toggle" open><summary><section id="method.list_trust_history" class="method"><a class="src rightside" href="../../src/puzzled/dbus.rs.html#3157-3187">Source</a><h4 class="code-header">async fn <a href="#method.list_trust_history" class="fn">list_trust_history</a>(
     &amp;self,
     header: Header&lt;'_&gt;,
     connection: &amp;Connection,
     uid: <a class="primitive" href="https://doc.rust-lang.org/1.94.1/std/primitive.u32.html">u32</a>,
     limit: <a class="primitive" href="https://doc.rust-lang.org/1.94.1/std/primitive.u32.html">u32</a>,
 ) -&gt; Result&lt;<a class="struct" href="https://doc.rust-lang.org/1.94.1/alloc/string/struct.String.html" title="struct alloc::string::String">String</a>&gt;</h4></section></summary><div class="docblock"><p>List trust score change history for an agent.</p>
-</div></details><details class="toggle method-toggle" open><summary><section id="method.report_provenance" class="method"><a class="src rightside" href="../../src/puzzled/dbus.rs.html#3209-3270">Source</a><h4 class="code-header">async fn <a href="#method.report_provenance" class="fn">report_provenance</a>(
+</div></details><details class="toggle method-toggle" open><summary><section id="method.report_provenance" class="method"><a class="src rightside" href="../../src/puzzled/dbus.rs.html#3193-3254">Source</a><h4 class="code-header">async fn <a href="#method.report_provenance" class="fn">report_provenance</a>(
     &amp;self,
     header: Header&lt;'_&gt;,
     connection: &amp;Connection,
@@ -351,13 +351,13 @@ Non-root callers can only query their own UID’s trust score.</p>
     record_json: &amp;<a class="primitive" href="https://doc.rust-lang.org/1.94.1/std/primitive.str.html">str</a>,
 ) -&gt; Result&lt;<a class="struct" href="https://doc.rust-lang.org/1.94.1/alloc/string/struct.String.html" title="struct alloc::string::String">String</a>&gt;</h4></section></summary><div class="docblock"><p>Report a provenance record for a branch.
 Caller must own the branch.</p>
-</div></details><details class="toggle method-toggle" open><summary><section id="method.get_provenance" class="method"><a class="src rightside" href="../../src/puzzled/dbus.rs.html#3273-3309">Source</a><h4 class="code-header">async fn <a href="#method.get_provenance" class="fn">get_provenance</a>(
+</div></details><details class="toggle method-toggle" open><summary><section id="method.get_provenance" class="method"><a class="src rightside" href="../../src/puzzled/dbus.rs.html#3257-3293">Source</a><h4 class="code-header">async fn <a href="#method.get_provenance" class="fn">get_provenance</a>(
     &amp;self,
     header: Header&lt;'_&gt;,
     connection: &amp;Connection,
     branch_id: &amp;<a class="primitive" href="https://doc.rust-lang.org/1.94.1/std/primitive.str.html">str</a>,
 ) -&gt; Result&lt;<a class="struct" href="https://doc.rust-lang.org/1.94.1/alloc/string/struct.String.html" title="struct alloc::string::String">String</a>&gt;</h4></section></summary><div class="docblock"><p>Get provenance records for a branch as NDJSON.</p>
-</div></details><details class="toggle method-toggle" open><summary><section id="method.get_identity_token" class="method"><a class="src rightside" href="../../src/puzzled/dbus.rs.html#3316-3434">Source</a><h4 class="code-header">async fn <a href="#method.get_identity_token" class="fn">get_identity_token</a>(
+</div></details><details class="toggle method-toggle" open><summary><section id="method.get_identity_token" class="method"><a class="src rightside" href="../../src/puzzled/dbus.rs.html#3300-3418">Source</a><h4 class="code-header">async fn <a href="#method.get_identity_token" class="fn">get_identity_token</a>(
     &amp;self,
     header: Header&lt;'_&gt;,
     connection: &amp;Connection,
@@ -365,13 +365,13 @@ Caller must own the branch.</p>
     audience_json: &amp;<a class="primitive" href="https://doc.rust-lang.org/1.94.1/std/primitive.str.html">str</a>,
 ) -&gt; Result&lt;<a class="struct" href="https://doc.rust-lang.org/1.94.1/alloc/string/struct.String.html" title="struct alloc::string::String">String</a>&gt;</h4></section></summary><div class="docblock"><p>Get a JWT-SVID for a branch, scoped to the given audience.
 Caller must own the branch.</p>
-</div></details><details class="toggle method-toggle" open><summary><section id="method.get_spiffe_id" class="method"><a class="src rightside" href="../../src/puzzled/dbus.rs.html#3452-3482">Source</a><h4 class="code-header">async fn <a href="#method.get_spiffe_id" class="fn">get_spiffe_id</a>(
+</div></details><details class="toggle method-toggle" open><summary><section id="method.get_spiffe_id" class="method"><a class="src rightside" href="../../src/puzzled/dbus.rs.html#3436-3466">Source</a><h4 class="code-header">async fn <a href="#method.get_spiffe_id" class="fn">get_spiffe_id</a>(
     &amp;self,
     header: Header&lt;'_&gt;,
     connection: &amp;Connection,
     branch_id: &amp;<a class="primitive" href="https://doc.rust-lang.org/1.94.1/std/primitive.str.html">str</a>,
 ) -&gt; Result&lt;<a class="struct" href="https://doc.rust-lang.org/1.94.1/alloc/string/struct.String.html" title="struct alloc::string::String">String</a>&gt;</h4></section></summary><div class="docblock"><p>Get the SPIFFE ID for a branch.</p>
-</div></details><details class="toggle method-toggle" open><summary><section id="method.get_identity_jwks" class="method"><a class="src rightside" href="../../src/puzzled/dbus.rs.html#3499-3505">Source</a><h4 class="code-header">async fn <a href="#method.get_identity_jwks" class="fn">get_identity_jwks</a>(
+</div></details><details class="toggle method-toggle" open><summary><section id="method.get_identity_jwks" class="method"><a class="src rightside" href="../../src/puzzled/dbus.rs.html#3483-3489">Source</a><h4 class="code-header">async fn <a href="#method.get_identity_jwks" class="fn">get_identity_jwks</a>(
     &amp;self,
     _header: Header&lt;'_&gt;,
     _connection: &amp;Connection,
@@ -460,12 +460,12 @@ total bytes.</p>
     error: &amp;<a class="primitive" href="https://doc.rust-lang.org/1.94.1/std/primitive.str.html">str</a>,
     domain: &amp;<a class="primitive" href="https://doc.rust-lang.org/1.94.1/std/primitive.str.html">str</a>,
 ) -&gt; Result&lt;<a class="primitive" href="https://doc.rust-lang.org/1.94.1/std/primitive.unit.html">()</a>&gt;</h4></section></summary><div class="docblock"><p>§3.4 G20: Credential proxy error — emitted on proxy failures.</p>
-</div></details></div></details><details class="toggle implementors-toggle" open><summary><section id="impl-ManagerInterface-1" class="impl"><a class="src rightside" href="../../src/puzzled/dbus.rs.html#3790-3820">Source</a><a href="#impl-ManagerInterface-1" class="anchor">§</a><h3 class="code-header">impl <a class="struct" href="struct.ManagerInterface.html" title="struct puzzled::dbus::ManagerInterface">ManagerInterface</a></h3></section></summary><div class="impl-items"><details class="toggle method-toggle" open><summary><section id="method.behavioral_trigger_throttle" class="method"><a class="src rightside" href="../../src/puzzled/dbus.rs.html#3794-3798">Source</a><h4 class="code-header">pub fn <a href="#method.behavioral_trigger_throttle" class="fn">behavioral_trigger_throttle</a>(
+</div></details></div></details><details class="toggle implementors-toggle" open><summary><section id="impl-ManagerInterface-1" class="impl"><a class="src rightside" href="../../src/puzzled/dbus.rs.html#3768-3798">Source</a><a href="#impl-ManagerInterface-1" class="anchor">§</a><h3 class="code-header">impl <a class="struct" href="struct.ManagerInterface.html" title="struct puzzled::dbus::ManagerInterface">ManagerInterface</a></h3></section></summary><div class="impl-items"><details class="toggle method-toggle" open><summary><section id="method.behavioral_trigger_throttle" class="method"><a class="src rightside" href="../../src/puzzled/dbus.rs.html#3772-3776">Source</a><h4 class="code-header">pub fn <a href="#method.behavioral_trigger_throttle" class="fn">behavioral_trigger_throttle</a>(
     &amp;self,
 ) -&gt; &amp;<a class="struct" href="https://doc.rust-lang.org/1.94.1/alloc/sync/struct.Arc.html" title="struct alloc::sync::Arc">Arc</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.94.1/std/sync/poison/mutex/struct.Mutex.html" title="struct std::sync::poison::mutex::Mutex">Mutex</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.94.1/std/collections/hash/map/struct.HashMap.html" title="struct std::collections::hash::map::HashMap">HashMap</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.94.1/alloc/string/struct.String.html" title="struct alloc::string::String">String</a>, <a class="struct" href="https://doc.rust-lang.org/1.94.1/std/time/struct.Instant.html" title="struct std::time::Instant">Instant</a>&gt;&gt;&gt;</h4></section></summary><div class="docblock"><p>PM11: Returns the behavioral trigger throttle map for external callers
 (e.g., fanotify trigger processing in branch.rs) to use with
 <code>should_emit_behavioral_trigger()</code>.</p>
-</div></details><details class="toggle method-toggle" open><summary><section id="method.emit_branch_event" class="method"><a class="src rightside" href="../../src/puzzled/dbus.rs.html#3801-3819">Source</a><h4 class="code-header">pub async fn <a href="#method.emit_branch_event" class="fn">emit_branch_event</a>(
+</div></details><details class="toggle method-toggle" open><summary><section id="method.emit_branch_event" class="method"><a class="src rightside" href="../../src/puzzled/dbus.rs.html#3779-3797">Source</a><h4 class="code-header">pub async fn <a href="#method.emit_branch_event" class="fn">emit_branch_event</a>(
     connection: &amp;Connection,
     branch_id: &amp;<a class="primitive" href="https://doc.rust-lang.org/1.94.1/std/primitive.str.html">str</a>,
     event_type: &amp;<a class="primitive" href="https://doc.rust-lang.org/1.94.1/std/primitive.str.html">str</a>,
