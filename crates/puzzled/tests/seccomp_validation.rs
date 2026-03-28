@@ -34,6 +34,7 @@ fn make_profile(exec_allowlist: Vec<String>, network: NetworkConfig) -> AgentPro
         allow_symlinks: false,
         allow_exec_overlay: false,
         credentials: None,
+        extends: None,
     }
 }
 

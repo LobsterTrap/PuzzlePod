@@ -366,6 +366,10 @@ pub struct AgentProfile {
     /// Credential injection configuration (§3.4). If None, no credentials injected.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub credentials: Option<CredentialConfig>,
+    /// Optional parent profile to inherit defaults from.
+    /// Child fields override parent fields. Max inheritance depth: 3.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub extends: Option<String>,
 }
 
 /// Credential injection configuration per profile (§3.4.10).
@@ -1550,6 +1554,7 @@ mod tests {
             allow_symlinks: false,
             allow_exec_overlay: false,
             credentials: None,
+            extends: None,
         };
 
         let yaml = serde_yaml::to_string(&profile).unwrap();
@@ -1622,6 +1627,7 @@ mod tests {
             allow_symlinks: false,
             allow_exec_overlay: false,
             credentials: None,
+            extends: None,
         };
 
         let json = serde_json::to_string_pretty(&profile).unwrap();

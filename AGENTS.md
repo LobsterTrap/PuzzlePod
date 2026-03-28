@@ -11,7 +11,7 @@ Targets: RHEL 10+, Fedora 42+, CentOS Stream 10 on x86_64/aarch64. Designed for 
 | Component | Location | Description |
 |---|---|---|
 | `puzzled` | `crates/puzzled/` | Governance daemon (Rust, tokio, zbus). D-Bus API, OverlayFS branching, OPA/Rego policy, sandbox setup |
-| `puzzlectl` | `crates/puzzlectl/` | CLI tool (Rust, clap). Branch/profile/policy management, TUI, governance simulator |
+| `puzzlectl` | `crates/puzzlectl/` | CLI tool (Rust, clap). Single-command `run` workflow, branch/profile/policy management, TUI, governance simulator |
 | `puzzled-types` | `crates/puzzled-types/` | Shared types crate (Branch, Change, CommitResult) |
 | `puzzle-sim-worker` | `crates/puzzlectl/src/bin/puzzle_sim_worker.rs` | Sandbox executor for simulator (not user-facing) |
 | `puzzle-podman` | `podman/puzzle-podman` | Bash wrapper for Podman-native mode |

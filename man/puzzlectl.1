@@ -42,6 +42,44 @@ Print help information.
 .B \-\-version
 Print version information.
 .SH COMMANDS
+.SS run \- Single\-command governed execution
+.TP
+.B puzzlectl run \fB\-\-profile\fR \fIname\fR [\fB\-\-base\fR \fIdir\fR] [\fB\-\-auto\-commit\fR|\fB\-\-auto\-rollback\fR] [\fB\-\-no\-diff\fR] \fB\-\-\fR \fIcommand\fR [\fIargs...\fR]
+Run a command with full governance lifecycle. Creates a branch, activates
+the agent, waits for exit, displays the diff, and prompts for commit or
+rollback. Combines the
+.BR "branch create" ", " "branch activate" ", " "branch diff" ", and " "branch approve/rollback"
+steps into a single operation.
+.RS
+.TP
+.BI \-\-profile " name"
+Agent profile to use (default:
+.BR standard ).
+.TP
+.BI \-\-base " dir"
+Base directory for OverlayFS lower layer (default:
+.BR . ).
+Resolved to an absolute path before use.
+.TP
+.B \-\-auto\-commit
+Automatically commit changes after the agent exits. Skips the interactive
+prompt. Mutually exclusive with
+.BR \-\-auto\-rollback .
+.TP
+.B \-\-auto\-rollback
+Automatically discard all changes after the agent exits. Useful for
+experiments and dry runs. Mutually exclusive with
+.BR \-\-auto\-commit .
+.TP
+.B \-\-no\-diff
+Suppress diff output before the approval prompt.
+.RE
+.IP
+If stdin is not a terminal and neither
+.B \-\-auto\-commit
+nor
+.B \-\-auto\-rollback
+is specified, changes are rolled back (fail\-closed).
 .SS branch \- Branch management
 .TP
 .B puzzlectl branch create \fB\-\-profile\fR \fIname\fR \fB\-\-base\-path\fR \fIpath\fR [\fB\-\-command\fR \fIcmd\fR]
@@ -107,6 +145,15 @@ in the profile structure or field values.
 Test a profile against a simulated scenario. The scenario describes a set
 of filesystem operations, exec calls, and network connections. The command
 reports which operations would be allowed or denied.
+.TP
+.B puzzlectl profile init [\fB\-\-non\-interactive\fR] [\fB\-\-name\fR \fIname\fR] [\fB\-\-extends\fR \fIparent\fR] [\fB\-\-network\-mode\fR \fImode\fR] [\fB\-\-out\fR \fIfile\fR]
+Generate a new profile YAML file interactively or from command\-line flags.
+Prompts for name, description, write directories, network mode, memory
+limit, max PIDs, and storage quota. If
+.B \-\-non\-interactive
+is specified, uses sensible defaults for all unprovided values. Output goes
+to stdout by default, or to the file specified by
+.BR \-\-out .
 .SS policy \- Policy management
 .TP
 .B puzzlectl policy reload
@@ -117,6 +164,39 @@ are not affected; new policy takes effect on the next commit evaluation.
 Test OPA/Rego policies against a synthetic input file. The input file
 contains a JSON representation of a changeset. Reports the policy
 decision and any violations.
+.TP
+.B puzzlectl policy add\-rule [\fB\-\-deny\-path\fR \fIglob\fR] [\fB\-\-max\-file\-size\fR \fIbytes\fR] [\fB\-\-deny\-extension\fR \fIexts\fR] [\fB\-\-max\-files\fR \fIn\fR] [\fB\-\-severity\fR \fIlevel\fR] [\fB\-\-message\fR \fItext\fR] [\fB\-\-policy\-file\fR \fIfile\fR] [\fB\-\-dry\-run\fR]
+Add a governance rule from a template without writing Rego by hand.
+At least one rule type flag is required. Supported rule types:
+.RS
+.TP
+.BI \-\-deny\-path " glob"
+Deny files matching a glob pattern (e.g., "*.prod.yml").
+.TP
+.BI \-\-max\-file\-size " bytes"
+Deny files exceeding the specified size in bytes.
+.TP
+.BI \-\-deny\-extension " exts"
+Deny files with specified extensions (comma\-separated, e.g., ".exe,.dll").
+.TP
+.BI \-\-max\-files " n"
+Deny changesets with more than
+.I n
+files.
+.TP
+.BI \-\-severity " level"
+Violation severity:
+.BR warning ", " error " (default), " critical .
+.TP
+.BI \-\-message " text"
+Custom violation message template. Overrides the default message for the rule type.
+.TP
+.BI \-\-policy\-file " file"
+Path to the policy file to write or append to. Defaults to the policies directory.
+.TP
+.B \-\-dry\-run
+Print the generated Rego to stdout without writing to disk.
+.RE
 .SS audit \- Audit event management
 .TP
 .B puzzlectl audit list [\fB\-\-branch\fR \fIid\fR] [\fB\-\-since\fR \fItimestamp\fR] [\fB\-\-until\fR \fItimestamp\fR]
@@ -132,6 +212,40 @@ Writes to stdout by default, or to the specified output file.
 Verify the integrity of audit event signatures using IMA measurements.
 Reports any tampered or missing events.
 .SH EXAMPLES
+Run a governed command (single step):
+.PP
+.RS
+.nf
+$ puzzlectl run \-\-profile=standard \-\- python3 agent.py
+[run] creating branch (profile=standard)...
+[run] branch br\-x1y2z3 created, activating...
+[run] agent running, waiting for exit...
+[run] agent exited (state: exited)
+[run] 2 file(s) changed:
++ src/output.txt (256 bytes)
+~ src/data.json (1024 bytes)
+
+[run] approve changes? [y/N/d(iff)]:
+.fi
+.RE
+.PP
+Run with auto\-rollback (for experiments):
+.PP
+.RS
+.nf
+$ puzzlectl run \-\-auto\-rollback \-\- ./experiment.sh
+.fi
+.RE
+.PP
+Generate a profile and add a custom policy rule:
+.PP
+.RS
+.nf
+$ puzzlectl profile init \-\-non\-interactive \-\-name my\-agent \-\-extends standard
+$ puzzlectl policy add\-rule \-\-deny\-path "*.prod.yml" \-\-severity critical \-\-dry\-run
+.fi
+.RE
+.PP
 Create a branch with the standard profile:
 .PP
 .RS

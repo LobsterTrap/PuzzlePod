@@ -589,6 +589,8 @@ The Branch Context is the unifying abstraction. It binds namespace isolation, cg
 
 **FR-PROF-003:** All profiles SHALL be validated against a JSON schema before deployment.
 
+**FR-PROF-004:** Profiles SHALL support inheritance via an optional `extends` field. A child profile inherits all fields from the named parent; child fields override parent fields. Vec fields (exec_allowlist, filesystem lists, etc.) inherit the parent's values when the child's list is empty. Inheritance depth SHALL be bounded at 3 levels. Circular inheritance SHALL be detected and rejected.
+
 #### 6.1.5 Seccomp Split Strategy
 
 **FR-SEC-001:** Syscall interception SHALL be split into two tiers:
@@ -637,10 +639,11 @@ The Branch Context is the unifying abstraction. It binds namespace isolation, cg
 #### 6.1.8 CLI (puzzlectl)
 
 **FR-CLI-001:** puzzlectl SHALL provide the following commands:
+- `puzzlectl run --profile=<name> [--auto-commit|--auto-rollback] -- <command...>`
 - `puzzlectl branch list|inspect|approve|reject|rollback|create|diff`
 - `puzzlectl agent list|info|kill`
-- `puzzlectl profile list|show|validate|test`
-- `puzzlectl policy reload|test`
+- `puzzlectl profile list|show|validate|test|init`
+- `puzzlectl policy reload|test|add-rule`
 - `puzzlectl audit list|query|export`
 - `puzzlectl status [branch_id]`
 - `puzzlectl tui` -- Interactive terminal UI
@@ -1150,7 +1153,7 @@ Each phase is independently valuable. An organization can stop at any phase and 
 | Capability | Description |
 |---|---|
 | puzzled daemon | Rust daemon with D-Bus API for agent lifecycle management |
-| puzzlectl CLI | Branch management, profile management, policy management, audit queries |
+| puzzlectl CLI | Branch management, profile management, policy management, audit queries, single-command `run` workflow |
 | Agent sandbox | clone3() with PID/mount/network/IPC/UTS/cgroup namespaces + pidfd |
 | OverlayFS branching | CoW filesystem branches in mount namespaces |
 | Diff engine | Upper-layer walk with checksum filtering for copy-up artifacts |

@@ -352,6 +352,12 @@ Uses the two-step branch lifecycle:
 
 The two-step flow reflects the production architecture: branch creation is separate from process activation, enabling Podman-native mode where Podman creates the container and puzzled only creates the governance workspace.
 
+> **Tip:** The `puzzlectl run` command combines branch creation, activation, polling, and commit/rollback into a single step:
+> ```bash
+> puzzlectl run --profile=standard --base=/tmp -- /usr/bin/echo hello
+> puzzlectl run --auto-rollback --base=/tmp -- /usr/bin/touch /tmp/test-file
+> ```
+
 #### Demo 2: Verifying Kernel Enforcement
 
 Reads `/proc/<PID>/status` and `/proc/<PID>/ns/*` to verify 8 enforcement properties on the live agent process:
@@ -517,6 +523,12 @@ Describes the two-tier seccomp strategy (static deny + USER_NOTIF), both of whic
 #### Section 10: Podman Rootless Integration
 
 If Podman is installed, shows its rootless mode status and explains how `puzzle-podman` integrates governance with Podman rootless containers.
+
+> **Tip:** The `puzzlectl run` command works in rootless mode with `--bus=session`:
+> ```bash
+> puzzlectl run --bus=session --profile=standard --base=/tmp -- /usr/bin/echo hello
+> puzzlectl run --bus=session --auto-rollback --base=/tmp -- /usr/bin/touch /tmp/test-file
+> ```
 
 ### User-Mode puzzled Setup
 

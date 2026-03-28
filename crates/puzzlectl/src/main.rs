@@ -18,7 +18,12 @@ const MAX_CREDENTIAL_SIZE: u64 = 65_536;
 
 /// puzzlectl — CLI for managing PuzzlePod branches, agents, profiles, and policies.
 #[derive(Parser)]
-#[command(name = "puzzlectl", version, about)]
+#[command(
+    name = "puzzlectl",
+    version,
+    about,
+    after_help = "Quick start:\n  puzzlectl run --profile=standard -- python3 agent.py\n  puzzlectl status\n  puzzlectl branch list"
+)]
 struct Cli {
     /// Output format
     #[arg(long, default_value = "text", global = true)]
@@ -49,52 +54,87 @@ enum ReportFormat {
 
 #[derive(Subcommand)]
 enum Command {
+    /// Run a command with full governance: create branch, activate, wait, review, commit/rollback
+    #[command(display_order = 1)]
+    Run {
+        /// Agent profile name
+        #[arg(long, default_value = "standard")]
+        profile: String,
+        /// Base directory for OverlayFS lower layer
+        #[arg(long, default_value = ".")]
+        base: String,
+        /// Auto-commit on clean exit (no interactive prompt)
+        #[arg(long)]
+        auto_commit: bool,
+        /// Auto-rollback on exit (discard all changes)
+        #[arg(long, conflicts_with = "auto_commit")]
+        auto_rollback: bool,
+        /// Hide diff output before prompting
+        #[arg(long)]
+        no_diff: bool,
+        /// Poll interval in ms for checking branch state
+        #[arg(long, default_value = "500", hide = true)]
+        poll_ms: u64,
+        /// Command and arguments to run inside the sandbox
+        #[arg(last = true, required = true)]
+        command: Vec<String>,
+    },
     /// Manage branches (OverlayFS isolation contexts)
+    #[command(display_order = 2)]
     Branch {
         #[command(subcommand)]
         action: BranchAction,
     },
     /// Manage running agents
+    #[command(display_order = 4)]
     Agent {
         #[command(subcommand)]
         action: AgentAction,
     },
     /// Manage agent profiles
+    #[command(display_order = 5)]
     Profile {
         #[command(subcommand)]
         action: ProfileAction,
     },
     /// Manage governance policies
+    #[command(display_order = 6)]
     Policy {
         #[command(subcommand)]
         action: PolicyAction,
     },
     /// Query and export audit events
+    #[command(display_order = 10)]
     Audit {
         #[command(subcommand)]
         action: AuditAction,
     },
     /// Verify cryptographic attestation of governance (§3.1)
+    #[command(display_order = 11)]
     Attestation {
         #[command(subcommand)]
         action: AttestationAction,
     },
     /// Generate compliance evidence reports (§3.2)
+    #[command(display_order = 12)]
     Compliance {
         #[command(subcommand)]
         action: ComplianceAction,
     },
     /// Manage credentials for agent profiles (phantom token injection)
+    #[command(display_order = 13)]
     Credential {
         #[command(subcommand)]
         action: CredentialAction,
     },
     /// Show daemon and branch status
+    #[command(display_order = 3)]
     Status {
         /// Optional branch ID to show status for a specific branch
         id: Option<String>,
     },
     /// Governance simulator — test governance policies without running real agents
+    #[command(display_order = 20)]
     #[cfg(feature = "sim")]
     Sim {
         /// Launch interactive REPL mode (optionally preload a scenario)
@@ -130,9 +170,11 @@ enum Command {
         pace: bool,
     },
     /// Interactive terminal UI for branch management
+    #[command(display_order = 21)]
     #[cfg(feature = "tui")]
     Tui,
     /// Show puzzlectl version
+    #[command(display_order = 99)]
     Version,
 }
 
@@ -275,6 +317,24 @@ enum ProfileAction {
         #[arg(long, default_value = "/etc/puzzled/profiles")]
         dir: String,
     },
+    /// Interactively generate a new profile YAML file
+    Init {
+        /// Output file path (default: stdout)
+        #[arg(long = "out", short = 'o')]
+        output_file: Option<String>,
+        /// Non-interactive mode with defaults
+        #[arg(long)]
+        non_interactive: bool,
+        /// Profile name
+        #[arg(long)]
+        name: Option<String>,
+        /// Base profile to extend
+        #[arg(long)]
+        extends: Option<String>,
+        /// Network mode: Blocked, Gated, Monitored, Unrestricted
+        #[arg(long)]
+        network_mode: Option<String>,
+    },
 }
 
 #[derive(Subcommand)]
@@ -288,6 +348,33 @@ enum PolicyAction {
         /// Directory containing Rego policy files
         #[arg(long, default_value = "/etc/puzzled/policies")]
         policy_dir: String,
+    },
+    /// Add a governance rule from a template (no Rego required)
+    AddRule {
+        /// Deny files matching a glob pattern (e.g., "*.prod.yml")
+        #[arg(long)]
+        deny_path: Option<String>,
+        /// Max allowed file size in bytes
+        #[arg(long)]
+        max_file_size: Option<u64>,
+        /// Deny files with these extensions (comma-separated, e.g., ".exe,.dll")
+        #[arg(long)]
+        deny_extension: Option<String>,
+        /// Max number of files in a changeset
+        #[arg(long)]
+        max_files: Option<u32>,
+        /// Severity: warning, error, critical
+        #[arg(long, default_value = "error")]
+        severity: String,
+        /// Violation message
+        #[arg(long)]
+        message: Option<String>,
+        /// Rego file to append to
+        #[arg(long, default_value = "policies/rules/custom_rules.rego")]
+        policy_file: String,
+        /// Print generated Rego without writing
+        #[arg(long)]
+        dry_run: bool,
     },
 }
 
@@ -546,6 +633,21 @@ async fn main() -> Result<()> {
             } => {
                 cmd_profile_test(&name, &changeset, &dir)?;
             }
+            ProfileAction::Init {
+                output_file,
+                non_interactive,
+                name,
+                extends,
+                network_mode,
+            } => {
+                cmd_profile_init(
+                    output_file.as_deref(),
+                    non_interactive,
+                    name.as_deref(),
+                    extends.as_deref(),
+                    network_mode.as_deref(),
+                )?;
+            }
         },
         // Policy test is local
         Command::Policy {
@@ -556,6 +658,31 @@ async fn main() -> Result<()> {
                 },
         } => {
             cmd_policy_test(&changeset, &policy_dir)?;
+        }
+        // Policy add-rule is local (generates Rego, no D-Bus)
+        Command::Policy {
+            action:
+                PolicyAction::AddRule {
+                    deny_path,
+                    max_file_size,
+                    deny_extension,
+                    max_files,
+                    severity,
+                    message,
+                    policy_file,
+                    dry_run,
+                },
+        } => {
+            cmd_policy_add_rule(
+                deny_path.as_deref(),
+                max_file_size,
+                deny_extension.as_deref(),
+                max_files,
+                &severity,
+                message.as_deref(),
+                &policy_file,
+                dry_run,
+            )?;
         }
         // Audit verify is local (doesn't need D-Bus)
         Command::Audit {
@@ -735,7 +862,15 @@ async fn main() -> Result<()> {
         }
         // All other commands need D-Bus
         _ => {
-            let client = client::PuzzledClient::connect(&cli.bus).await?;
+            let client = client::PuzzledClient::connect(&cli.bus)
+                .await
+                .context(format!(
+                    "could not connect to puzzled daemon on {} bus.\n\
+                     Hint: Is puzzled running? Try:\n  \
+                     systemctl status puzzled          (system mode)\n  \
+                     scripts/dev-setup-user.sh start   (rootless/session mode)",
+                    cli.bus
+                ))?;
 
             match cli.command {
                 Command::Audit { action } => match action {
@@ -1459,6 +1594,28 @@ async fn main() -> Result<()> {
                         );
                     }
                 }
+                Command::Run {
+                    profile,
+                    base,
+                    auto_commit,
+                    auto_rollback,
+                    no_diff,
+                    poll_ms,
+                    command: cmd_args,
+                } => {
+                    cmd_run(
+                        &client,
+                        &profile,
+                        &base,
+                        &cmd_args,
+                        auto_commit,
+                        auto_rollback,
+                        !no_diff,
+                        poll_ms,
+                        cli.output,
+                    )
+                    .await?;
+                }
                 _ => unreachable!(),
             }
         }
@@ -1485,11 +1642,295 @@ fn output_action(format: OutputFormat, status: &str, id: &str, reason: &str, tex
     }
 }
 
+// --- `puzzlectl run` helpers ---
+
+/// Parse a string field from a JSON response.
+fn parse_json_field(json: &str, field: &str) -> Result<String> {
+    let v: serde_json::Value = serde_json::from_str(json).context("parsing JSON response")?;
+    v.get(field)
+        .and_then(|v| v.as_str())
+        .map(String::from)
+        .ok_or_else(|| anyhow::anyhow!("missing '{}' in response: {}", field, json))
+}
+
+/// Poll InspectBranch until state leaves active/creating/frozen/committing.
+async fn poll_branch_until_done(
+    client: &client::PuzzledClient,
+    branch_id: &str,
+    poll_ms: u64,
+) -> Result<String> {
+    let interval = std::time::Duration::from_millis(poll_ms.clamp(100, 10_000));
+    let deadline = tokio::time::Instant::now() + tokio::time::Duration::from_secs(86400);
+    loop {
+        if tokio::time::Instant::now() > deadline {
+            anyhow::bail!("branch {branch_id} did not exit within 24h");
+        }
+        tokio::time::sleep(interval).await;
+        let info = client.inspect_branch(branch_id).await?;
+        let state = parse_json_field(&info, "state").unwrap_or_else(|_| "unknown".into());
+        match state.as_str() {
+            "active" | "creating" | "ready" | "frozen" | "committing" => continue,
+            _ => return Ok(state),
+        }
+    }
+}
+
+enum Decision {
+    Approve,
+    Reject,
+    ShowDiff,
+}
+
+fn prompt_approve_reject() -> Result<Decision> {
+    use std::io::Write;
+    eprint!("[run] approve changes? [y/N/d(iff)]: ");
+    std::io::stderr().flush()?;
+    let mut input = String::new();
+    std::io::stdin().read_line(&mut input)?;
+    match input.trim().to_lowercase().as_str() {
+        "y" | "yes" => Ok(Decision::Approve),
+        "d" | "diff" => Ok(Decision::ShowDiff),
+        _ => Ok(Decision::Reject),
+    }
+}
+
+fn output_run_result(format: OutputFormat, branch_id: &str, status: &str, changes: usize) {
+    match format {
+        OutputFormat::Json => {
+            println!(
+                "{}",
+                serde_json::json!({
+                    "branch_id": branch_id, "status": status, "changes": changes
+                })
+            );
+        }
+        OutputFormat::Text => eprintln!("[run] {status} ({changes} file(s))"),
+    }
+}
+
+/// Returns true if the policy rejected the commit.
+fn output_run_result_with_governance(
+    format: OutputFormat,
+    branch_id: &str,
+    commit_json: &str,
+    changes: usize,
+) -> bool {
+    let mut rejected = false;
+    match format {
+        OutputFormat::Json => {
+            println!(
+                "{}",
+                serde_json::to_string_pretty(
+                    &serde_json::from_str::<serde_json::Value>(commit_json)
+                        .unwrap_or(serde_json::Value::String(commit_json.to_string()))
+                )
+                .unwrap_or_else(|_| commit_json.to_string())
+            );
+            // Check for rejection in JSON output mode too
+            if let Ok(v) = serde_json::from_str::<serde_json::Value>(commit_json) {
+                if let Some(result) = v.get("policy_result") {
+                    if result.get("Rejected").is_some() {
+                        rejected = true;
+                    }
+                }
+            }
+        }
+        OutputFormat::Text => {
+            if let Ok(v) = serde_json::from_str::<serde_json::Value>(commit_json) {
+                if let Some(result) = v.get("policy_result") {
+                    if result.get("Approved").is_some() {
+                        eprintln!("[run] committed ({changes} file(s), policy: approved)");
+                    } else if let Some(violations) = result.get("Rejected") {
+                        rejected = true;
+                        eprintln!(
+                            "[run] rolled back by policy ({} violation(s)):",
+                            violations.as_array().map(|a| a.len()).unwrap_or(0)
+                        );
+                        if let Some(arr) = violations.as_array() {
+                            for vi in arr {
+                                let msg = vi
+                                    .get("message")
+                                    .and_then(|m| m.as_str())
+                                    .unwrap_or("unknown");
+                                let sev = vi
+                                    .get("severity")
+                                    .and_then(|s| s.as_str())
+                                    .unwrap_or("error");
+                                eprintln!("  [{sev}] {msg}");
+                            }
+                        }
+                    } else {
+                        eprintln!("[run] committed ({changes} file(s), branch: {branch_id})");
+                    }
+                } else {
+                    eprintln!("[run] committed ({changes} file(s), branch: {branch_id})");
+                }
+            } else {
+                eprintln!("[run] {commit_json}");
+            }
+        }
+    }
+    rejected
+}
+
+#[allow(clippy::too_many_arguments)]
+async fn cmd_run(
+    client: &client::PuzzledClient,
+    profile: &str,
+    base: &str,
+    cmd_args: &[String],
+    auto_commit: bool,
+    auto_rollback: bool,
+    show_diff: bool,
+    poll_ms: u64,
+    output: OutputFormat,
+) -> Result<()> {
+    use std::io::IsTerminal;
+
+    if cmd_args.is_empty() {
+        anyhow::bail!("no command specified");
+    }
+
+    let abs_base = std::fs::canonicalize(base)
+        .with_context(|| format!("resolving base path '{}'", base))?
+        .to_string_lossy()
+        .to_string();
+
+    let command_json = serde_json::to_string(&cmd_args)?;
+
+    // Step 1: Create branch
+    if matches!(output, OutputFormat::Text) {
+        eprintln!("[run] creating branch (profile={profile})...");
+    }
+    let create_json = client
+        .create_branch(profile, &abs_base, &command_json)
+        .await?;
+    let branch_id = parse_json_field(&create_json, "id")?;
+
+    // Step 2: Activate branch
+    if matches!(output, OutputFormat::Text) {
+        eprintln!("[run] branch {branch_id} created, activating...");
+    }
+    client.activate_branch(&branch_id, &command_json).await?;
+    if matches!(output, OutputFormat::Text) {
+        eprintln!("[run] agent running, waiting for exit...");
+    }
+
+    // Step 3: Poll until terminal state
+    let final_state = poll_branch_until_done(client, &branch_id, poll_ms).await?;
+    if matches!(output, OutputFormat::Text) {
+        eprintln!("[run] agent exited (state: {final_state})");
+    }
+
+    // Check for terminal error states before attempting diff/commit
+    match final_state.as_str() {
+        "exited" | "governance_review" => {} // proceed to diff/commit
+        "failed" | "terminated" | "degraded" => {
+            let reason = format!("branch ended in state: {final_state}");
+            let _ = client.rollback_branch(&branch_id, &reason).await;
+            output_run_result(output, &branch_id, &final_state, 0);
+            anyhow::bail!("branch {branch_id} ended in terminal state: {final_state}");
+        }
+        _ => {
+            if matches!(output, OutputFormat::Text) {
+                eprintln!("[run] warning: unexpected state '{final_state}', attempting diff");
+            }
+        }
+    }
+
+    // Step 4: Get diff
+    let diff_json = client.diff_branch(&branch_id).await?;
+    let change_count = serde_json::from_str::<Vec<serde_json::Value>>(&diff_json)
+        .map(|v| v.len())
+        .unwrap_or(0);
+
+    // Step 5: Handle empty changeset
+    if change_count == 0 {
+        if matches!(output, OutputFormat::Text) {
+            eprintln!("[run] no changes detected");
+        }
+        let _ = client.rollback_branch(&branch_id, "no changes").await;
+        output_run_result(output, &branch_id, "no_changes", 0);
+        return Ok(());
+    }
+
+    // Step 6: Show diff if requested
+    if show_diff && matches!(output, OutputFormat::Text) {
+        eprintln!("[run] {} file(s) changed:", change_count);
+        print_diff_text(&diff_json);
+        eprintln!();
+    }
+
+    // Step 7: Decision
+    let mut policy_rejected = false;
+    if auto_rollback {
+        client.rollback_branch(&branch_id, "auto-rollback").await?;
+        output_run_result(output, &branch_id, "rolled_back", change_count);
+    } else if auto_commit {
+        let result = client.commit_branch(&branch_id).await?;
+        policy_rejected =
+            output_run_result_with_governance(output, &branch_id, &result, change_count);
+    } else {
+        // Interactive prompt
+        if !std::io::stdin().is_terminal() {
+            eprintln!("[run] non-interactive stdin, rolling back (use --auto-commit to override)");
+            client
+                .rollback_branch(&branch_id, "non-interactive")
+                .await?;
+            output_run_result(output, &branch_id, "rolled_back", change_count);
+        } else {
+            match prompt_approve_reject()? {
+                Decision::Approve => {
+                    let result = client.commit_branch(&branch_id).await?;
+                    policy_rejected = output_run_result_with_governance(
+                        output,
+                        &branch_id,
+                        &result,
+                        change_count,
+                    );
+                }
+                Decision::Reject => {
+                    client.rollback_branch(&branch_id, "user rejected").await?;
+                    output_run_result(output, &branch_id, "rolled_back", change_count);
+                }
+                Decision::ShowDiff => {
+                    print_diff_text(&diff_json);
+                    eprint!("[run] approve? [y/N]: ");
+                    std::io::Write::flush(&mut std::io::stderr())?;
+                    let mut line = String::new();
+                    std::io::stdin().read_line(&mut line)?;
+                    if line.trim().eq_ignore_ascii_case("y") {
+                        let result = client.commit_branch(&branch_id).await?;
+                        policy_rejected = output_run_result_with_governance(
+                            output,
+                            &branch_id,
+                            &result,
+                            change_count,
+                        );
+                    } else {
+                        client.rollback_branch(&branch_id, "user rejected").await?;
+                        output_run_result(output, &branch_id, "rolled_back", change_count);
+                    }
+                }
+            }
+        }
+    }
+    if policy_rejected {
+        anyhow::bail!("governance policy rejected the changes");
+    }
+    Ok(())
+}
+
 /// M-ctl2: Validate a branch ID before sending it over D-Bus.
 /// Returns a clear CLI error instead of a cryptic D-Bus error on invalid input.
 fn validate_branch_id(id: &str) -> Result<()> {
-    BranchId::validated(id.to_string())
-        .map_err(|e| anyhow::anyhow!("invalid branch ID '{}': {}", id, e))?;
+    BranchId::validated(id.to_string()).map_err(|e| {
+        anyhow::anyhow!(
+            "invalid branch ID '{}': {}\nHint: use 'puzzlectl branch list' to see valid branch IDs",
+            id,
+            e
+        )
+    })?;
     Ok(())
 }
 
@@ -1528,7 +1969,10 @@ fn filter_branches_by_state(branches_json: &str, state_filter: &str) -> String {
 fn cmd_profile_list(dir: &str, output: OutputFormat) -> Result<()> {
     let dir_path = Path::new(dir);
     if !dir_path.exists() {
-        anyhow::bail!("profiles directory not found: {}", dir);
+        anyhow::bail!(
+            "profiles directory not found: {}\nHint: list available profiles with: puzzlectl profile list --dir <path>",
+            dir
+        );
     }
 
     let mut profiles = Vec::new();
@@ -1603,7 +2047,10 @@ fn cmd_profile_show(name: &str, dir: &str, output: OutputFormat) -> Result<()> {
     };
 
     if !path.exists() {
-        anyhow::bail!("profile not found: {} (tried {})", name, path.display());
+        anyhow::bail!(
+            "profile not found: {} (tried {})\nHint: use 'puzzlectl profile list' to see available profiles",
+            name, path.display()
+        );
     }
 
     let contents =
@@ -1657,7 +2104,404 @@ fn cmd_profile_validate(path: &str) -> Result<()> {
     Ok(())
 }
 
+fn cmd_profile_init(
+    output_path: Option<&str>,
+    non_interactive: bool,
+    cli_name: Option<&str>,
+    cli_extends: Option<&str>,
+    cli_network_mode: Option<&str>,
+) -> Result<()> {
+    use std::io::{BufRead, IsTerminal, Write};
+
+    let interactive = !non_interactive && std::io::stdin().is_terminal();
+
+    let prompt = |question: &str, default: &str| -> Result<String> {
+        if interactive {
+            eprint!("{} [{}]: ", question, default);
+            std::io::stderr().flush()?;
+            let mut input = String::new();
+            std::io::stdin().lock().read_line(&mut input)?;
+            let trimmed = input.trim();
+            Ok(if trimmed.is_empty() {
+                default.to_string()
+            } else {
+                trimmed.to_string()
+            })
+        } else {
+            Ok(default.to_string())
+        }
+    };
+
+    let name = cli_name
+        .map(String::from)
+        .map_or_else(|| prompt("Profile name", "my-agent"), Ok)?;
+    if name.is_empty()
+        || !name
+            .chars()
+            .all(|c| c.is_alphanumeric() || c == '-' || c == '_')
+    {
+        anyhow::bail!("profile name must be alphanumeric with hyphens/underscores");
+    }
+
+    let description = prompt("Description", &format!("Custom profile for {}", name))?;
+
+    let extends_val = cli_extends
+        .map(String::from)
+        .map_or_else(|| prompt("Extend base profile (or 'none')", "standard"), Ok)?;
+    let extends_val = if extends_val == "none" {
+        None
+    } else {
+        Some(extends_val)
+    };
+
+    let write_dirs_str = prompt(
+        "Write directories (comma-separated, absolute paths)",
+        "/tmp,/workspace",
+    )?;
+    let write_dirs: Vec<&str> = write_dirs_str
+        .split(',')
+        .map(|s| s.trim())
+        .filter(|s| !s.is_empty())
+        .collect();
+    for d in &write_dirs {
+        if !d.starts_with('/') {
+            anyhow::bail!("write directory must be absolute: {}", d);
+        }
+    }
+
+    let net_mode = cli_network_mode.map(String::from).map_or_else(
+        || {
+            prompt(
+                "Network mode (Blocked/Gated/Monitored/Unrestricted)",
+                "Blocked",
+            )
+        },
+        Ok,
+    )?;
+    if !["Blocked", "Gated", "Monitored", "Unrestricted"].contains(&net_mode.as_str()) {
+        anyhow::bail!(
+            "invalid network mode '{}': must be one of: Blocked, Gated, Monitored, Unrestricted",
+            net_mode
+        );
+    }
+
+    let mut allowed_domains = Vec::new();
+    if net_mode == "Gated" {
+        let domains_str = prompt("Allowed domains (comma-separated)", "github.com,pypi.org")?;
+        allowed_domains = domains_str
+            .split(',')
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty())
+            .collect();
+    }
+
+    let memory_mb: u64 = prompt("Memory limit (MB)", "512")?
+        .parse()
+        .context("invalid memory")?;
+    let max_pids: u32 = prompt("Max PIDs", "64")?
+        .parse()
+        .context("invalid max_pids")?;
+    let storage_mb: u64 = prompt("Storage quota (MB)", "1024")?
+        .parse()
+        .context("invalid storage")?;
+
+    let network_mode: puzzled_types::NetworkMode = match net_mode.as_str() {
+        "Blocked" => puzzled_types::NetworkMode::Blocked,
+        "Gated" => puzzled_types::NetworkMode::Gated,
+        "Monitored" => puzzled_types::NetworkMode::Monitored,
+        "Unrestricted" => puzzled_types::NetworkMode::Unrestricted,
+        _ => unreachable!(), // validated above
+    };
+
+    let profile = puzzled_types::AgentProfile {
+        name: name.clone(),
+        description,
+        extends: extends_val,
+        filesystem: puzzled_types::FilesystemRules {
+            read_allowlist: vec![
+                "/usr/bin".into(),
+                "/usr/share".into(),
+                "/usr/lib".into(),
+                "/usr/lib64".into(),
+                "/proc/self".into(),
+                "/dev/null".into(),
+                "/dev/urandom".into(),
+                "/etc/localtime".into(),
+            ],
+            write_allowlist: write_dirs.iter().map(PathBuf::from).collect(),
+            denylist: vec![
+                "/etc/shadow".into(),
+                "/etc/gshadow".into(),
+                "/etc/ssh".into(),
+            ],
+            read_denylist: vec![],
+            write_denylist: vec![],
+        },
+        exec_allowlist: vec![
+            "/usr/bin/python3".into(),
+            "/usr/bin/cat".into(),
+            "/usr/bin/ls".into(),
+        ],
+        exec_denylist: vec![
+            "nsenter".into(),
+            "unshare".into(),
+            "chroot".into(),
+            "mount".into(),
+            "strace".into(),
+            "gdb".into(),
+            "su".into(),
+            "sudo".into(),
+        ],
+        capabilities: vec![],
+        resource_limits: puzzled_types::ResourceLimits {
+            memory_bytes: memory_mb * 1024 * 1024,
+            cpu_shares: 100,
+            io_weight: 100,
+            max_pids,
+            storage_quota_mb: storage_mb,
+            inode_quota: 10000,
+            ..Default::default()
+        },
+        network: puzzled_types::NetworkConfig {
+            mode: network_mode,
+            allowed_domains,
+            data_residency: None,
+            dlp_rules_path: None,
+        },
+        behavioral: puzzled_types::BehavioralConfig {
+            max_deletions: 50,
+            max_reads_per_minute: 1000,
+            credential_access_alert: false,
+            phantom_token_prefixes: vec![],
+        },
+        fail_mode: puzzled_types::FailMode::FailClosed,
+        enforcement: Default::default(),
+        seccomp_mode: puzzled_types::SeccompMode::Permissive,
+        allow_symlinks: false,
+        allow_exec_overlay: false,
+        credentials: None,
+    };
+
+    let y = serde_yaml::to_string(&profile).context("serializing profile to YAML")?;
+
+    if let Some(path) = output_path {
+        if Path::new(path).exists() {
+            anyhow::bail!("file already exists: {path}");
+        }
+        std::fs::write(path, &y).with_context(|| format!("writing {path}"))?;
+        eprintln!("Profile written to {path}");
+        eprintln!("Validate with: puzzlectl profile validate {path}");
+    } else {
+        print!("{y}");
+    }
+    Ok(())
+}
+
+/// Escape a string for embedding in a Rego double-quoted string literal.
+fn escape_rego_string(s: &str) -> String {
+    s.replace('\\', "\\\\").replace('"', "\\\"")
+}
+
+/// Escape regex metacharacters in user input, convert glob `*` to `.*`, and anchor.
+fn escape_glob_to_regex(pattern: &str) -> String {
+    let mut result = String::with_capacity(pattern.len() + 4);
+    result.push('^');
+    for ch in pattern.chars() {
+        match ch {
+            '*' => result.push_str(".*"),
+            '.' | '+' | '?' | '^' | '$' | '{' | '}' | '(' | ')' | '|' | '[' | ']' => {
+                result.push('\\');
+                result.push(ch);
+            }
+            '\\' => result.push_str("\\\\"),
+            _ => result.push(ch),
+        }
+    }
+    result.push('$');
+    result
+}
+
+/// Escape a file extension for use in a regex pattern (anchored at end).
+fn escape_ext_to_regex(ext: &str) -> String {
+    let mut result = String::with_capacity(ext.len() + 4);
+    for ch in ext.chars() {
+        match ch {
+            '.' | '+' | '?' | '^' | '$' | '{' | '}' | '(' | ')' | '|' | '[' | ']' | '*' => {
+                result.push('\\');
+                result.push(ch);
+            }
+            '\\' => result.push_str("\\\\"),
+            _ => result.push(ch),
+        }
+    }
+    result.push('$');
+    result
+}
+
 /// Test a policy against a sample changeset.
+fn sanitize_rule_name(s: &str) -> String {
+    s.chars()
+        .map(|c| if c.is_alphanumeric() { c } else { '_' })
+        .collect()
+}
+
+#[allow(clippy::too_many_arguments)]
+fn cmd_policy_add_rule(
+    deny_path: Option<&str>,
+    max_file_size: Option<u64>,
+    deny_extension: Option<&str>,
+    max_files: Option<u32>,
+    severity: &str,
+    message: Option<&str>,
+    policy_file: &str,
+    dry_run: bool,
+) -> Result<()> {
+    // Validate severity
+    if !["warning", "error", "critical"].contains(&severity) {
+        anyhow::bail!(
+            "invalid severity '{}': must be one of: warning, error, critical",
+            severity
+        );
+    }
+
+    // Require at least one rule type
+    if deny_path.is_none()
+        && max_file_size.is_none()
+        && deny_extension.is_none()
+        && max_files.is_none()
+    {
+        anyhow::bail!(
+            "at least one rule type required: --deny-path, --max-file-size, --deny-extension, or --max-files"
+        );
+    }
+
+    let mut rules = String::new();
+
+    if let Some(pattern) = deny_path {
+        let rule_name = sanitize_rule_name(pattern);
+        let msg = escape_rego_string(message.unwrap_or("path matches denied pattern"));
+        let regex = escape_rego_string(&escape_glob_to_regex(pattern));
+        rules += &format!(
+            r#"
+violations[v] if {{
+    some change in input.changes
+    re_match("{regex}", change.path)
+    v := {{
+        "rule": "deny_path_{rule_name}",
+        "message": sprintf("{msg}: %s", [change.path]),
+        "severity": "{severity}",
+    }}
+}}
+"#,
+            regex = regex,
+            rule_name = rule_name,
+            msg = msg,
+            severity = severity,
+        );
+    }
+
+    if let Some(max_size) = max_file_size {
+        let msg = escape_rego_string(message.unwrap_or("file exceeds maximum size"));
+        rules += &format!(
+            r#"
+violations[v] if {{
+    some change in input.changes
+    change.size > {max_size}
+    v := {{
+        "rule": "max_file_size_{max_size}",
+        "message": sprintf("{msg} ({max_size} bytes): %s (%d bytes)", [change.path, change.size]),
+        "severity": "{severity}",
+    }}
+}}
+"#,
+            max_size = max_size,
+            msg = msg,
+            severity = severity,
+        );
+    }
+
+    if let Some(extensions) = deny_extension {
+        for ext in extensions
+            .split(',')
+            .map(|s| s.trim())
+            .filter(|s| !s.is_empty())
+        {
+            let rule_name = sanitize_rule_name(ext);
+            let regex = escape_rego_string(&escape_ext_to_regex(ext));
+            let msg = escape_rego_string(message.unwrap_or("file has denied extension"));
+            let ext_escaped = escape_rego_string(ext);
+            rules += &format!(
+                r#"
+violations[v] if {{
+    some change in input.changes
+    re_match("{regex}", lower(change.path))
+    v := {{
+        "rule": "deny_ext_{rule_name}",
+        "message": sprintf("{msg} ({ext}): %s", [change.path]),
+        "severity": "{severity}",
+    }}
+}}
+"#,
+                regex = regex,
+                rule_name = rule_name,
+                ext = ext_escaped,
+                msg = msg,
+                severity = severity,
+            );
+        }
+    }
+
+    if let Some(max) = max_files {
+        let msg = escape_rego_string(message.unwrap_or("changeset exceeds maximum file count"));
+        rules += &format!(
+            r#"
+violations[v] if {{
+    count(input.changes) > {max}
+    v := {{
+        "rule": "max_files_{max}",
+        "message": sprintf("{msg}: %d files (max {max})", [count(input.changes)]),
+        "severity": "{severity}",
+    }}
+}}
+"#,
+            max = max,
+            msg = msg,
+            severity = severity,
+        );
+    }
+
+    let header =
+        "package puzzlepod.commit\n\nimport future.keywords.if\nimport future.keywords.in\n";
+    let full_content = format!("{header}{rules}");
+
+    if dry_run {
+        print!("{full_content}");
+    } else {
+        let path = Path::new(policy_file);
+        if let Some(parent) = path.parent() {
+            if !parent.exists() {
+                std::fs::create_dir_all(parent)
+                    .with_context(|| format!("creating directory {}", parent.display()))?;
+            }
+        }
+        if path.exists() {
+            // Append rules (skip header since file already has it)
+            use std::io::Write;
+            let mut f = std::fs::OpenOptions::new()
+                .append(true)
+                .open(path)
+                .with_context(|| format!("opening {policy_file}"))?;
+            write!(f, "{rules}")?;
+        } else {
+            std::fs::write(path, &full_content)
+                .with_context(|| format!("writing {policy_file}"))?;
+        }
+        eprintln!("Rule(s) added to {policy_file}");
+        eprintln!("Hint: reload with: puzzlectl policy reload");
+    }
+    Ok(())
+}
+
 fn cmd_policy_test(changeset_path: &str, policy_dir: &str) -> Result<()> {
     // Load the changeset
     let changeset_str = std::fs::read_to_string(changeset_path)
@@ -3823,6 +4667,143 @@ mod tests {
                 action: ProfileAction::Validate { path },
             } => assert_eq!(path, "/tmp/test.yaml"),
             _ => panic!("expected Profile Validate"),
+        }
+    }
+
+    #[test]
+    fn test_cli_profile_init_parse() {
+        let cli = Cli::try_parse_from([
+            "puzzlectl",
+            "profile",
+            "init",
+            "--non-interactive",
+            "--name",
+            "test-agent",
+        ])
+        .unwrap();
+        match cli.command {
+            Command::Profile {
+                action:
+                    ProfileAction::Init {
+                        name,
+                        non_interactive,
+                        ..
+                    },
+            } => {
+                assert_eq!(name, Some("test-agent".to_string()));
+                assert!(non_interactive);
+            }
+            _ => panic!("expected Profile Init"),
+        }
+    }
+
+    #[test]
+    fn test_cli_policy_add_rule_parse() {
+        let cli = Cli::try_parse_from([
+            "puzzlectl",
+            "policy",
+            "add-rule",
+            "--deny-path",
+            "*.prod.yml",
+            "--severity",
+            "critical",
+            "--dry-run",
+        ])
+        .unwrap();
+        match cli.command {
+            Command::Policy {
+                action:
+                    PolicyAction::AddRule {
+                        deny_path,
+                        severity,
+                        dry_run,
+                        ..
+                    },
+            } => {
+                assert_eq!(deny_path, Some("*.prod.yml".to_string()));
+                assert_eq!(severity, "critical");
+                assert!(dry_run);
+            }
+            _ => panic!("expected Policy AddRule"),
+        }
+    }
+
+    #[test]
+    fn test_sanitize_rule_name() {
+        assert_eq!(sanitize_rule_name("*.prod.yml"), "__prod_yml");
+        assert_eq!(sanitize_rule_name("hello-world"), "hello_world");
+        assert_eq!(sanitize_rule_name("abc123"), "abc123");
+    }
+
+    #[test]
+    fn test_cli_run_parse_basic() {
+        let cli = Cli::try_parse_from([
+            "puzzlectl",
+            "run",
+            "--profile",
+            "restricted",
+            "--",
+            "python3",
+            "agent.py",
+        ])
+        .unwrap();
+        match cli.command {
+            Command::Run {
+                profile,
+                command,
+                auto_commit,
+                auto_rollback,
+                ..
+            } => {
+                assert_eq!(profile, "restricted");
+                assert_eq!(command, vec!["python3", "agent.py"]);
+                assert!(!auto_commit);
+                assert!(!auto_rollback);
+            }
+            _ => panic!("expected Run"),
+        }
+    }
+
+    #[test]
+    fn test_cli_run_auto_commit() {
+        let cli = Cli::try_parse_from(["puzzlectl", "run", "--auto-commit", "--", "echo", "hello"])
+            .unwrap();
+        match cli.command {
+            Command::Run { auto_commit, .. } => assert!(auto_commit),
+            _ => panic!("expected Run"),
+        }
+    }
+
+    #[test]
+    fn test_cli_run_auto_commit_auto_rollback_conflict() {
+        let result = Cli::try_parse_from([
+            "puzzlectl",
+            "run",
+            "--auto-commit",
+            "--auto-rollback",
+            "--",
+            "echo",
+        ]);
+        assert!(
+            result.is_err(),
+            "auto-commit and auto-rollback should conflict"
+        );
+    }
+
+    #[test]
+    fn test_parse_json_field() {
+        let json = r#"{"id":"abc-123","state":"active"}"#;
+        assert_eq!(parse_json_field(json, "id").unwrap(), "abc-123");
+        assert_eq!(parse_json_field(json, "state").unwrap(), "active");
+        assert!(parse_json_field(json, "missing").is_err());
+    }
+
+    #[test]
+    fn test_cli_run_default_profile() {
+        let cli = Cli::try_parse_from(["puzzlectl", "run", "--", "ls"]).unwrap();
+        match cli.command {
+            Command::Run { profile, .. } => assert_eq!(profile, "standard"),
+            _ => panic!("expected Run"),
         }
     }
 

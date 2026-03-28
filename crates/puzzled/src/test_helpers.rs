@@ -51,6 +51,7 @@ pub fn create_test_profile(name: &str) -> AgentProfile {
         allow_symlinks: false,
         allow_exec_overlay: false,
         credentials: None,
+        extends: None,
     }
 }
 
@@ -83,6 +84,7 @@ pub fn create_restricted_profile() -> AgentProfile {
         allow_symlinks: false,
         allow_exec_overlay: false,
         credentials: None,
+        extends: None,
     }
 }
 
@@ -123,6 +125,7 @@ pub fn create_privileged_profile() -> AgentProfile {
         allow_symlinks: true,
         allow_exec_overlay: true,
         credentials: None,
+        extends: None,
     }
 }
 

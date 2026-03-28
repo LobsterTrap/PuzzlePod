@@ -1191,6 +1191,7 @@ fn demo_seccomp() {
             allow_symlinks: false,
             allow_exec_overlay: false,
             credentials: None,
+            extends: None,
         };
 
         // Fork a child to apply seccomp (irrevocable, can't apply in parent)

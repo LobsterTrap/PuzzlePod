@@ -1,0 +1,45 @@
+name: test-inherit
+description: Test profile demonstrating inheritance from standard
+extends: standard
+
+filesystem:
+  read_allowlist: []
+  write_allowlist:
+    - /workspace
+  denylist: []
+
+exec_allowlist:
+  - /usr/bin/python3
+  - /usr/bin/cat
+  - /usr/bin/ls
+
+exec_denylist:
+  - nsenter
+  - unshare
+  - chroot
+  - mount
+  - strace
+  - gdb
+  - su
+  - sudo
+
+resource_limits:
+  memory_bytes: 1073741824
+  cpu_shares: 100
+  io_weight: 100
+  max_pids: 128
+  storage_quota_mb: 2048
+  inode_quota: 20000
+
+network:
+  mode: Blocked
+  allowed_domains: []
+
+behavioral:
+  max_deletions: 100
+  max_reads_per_minute: 2000
+  credential_access_alert: false
+
+fail_mode: FailClosed
+seccomp_mode: Permissive
+allow_symlinks: false

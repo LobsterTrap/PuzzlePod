@@ -231,8 +231,8 @@ The `puzzled` crate is organized into the following modules:
 |---|---|
 | `branch.rs` | `puzzlectl branch` subcommands (list, inspect, approve, reject, rollback, create, diff, activate) |
 | `agent.rs` | `puzzlectl agent` subcommands (list, info, kill) |
-| `profile.rs` | `puzzlectl profile` subcommands (list, show, validate, test) |
-| `policy.rs` | `puzzlectl policy` subcommands (reload, test) |
+| `profile.rs` | `puzzlectl profile` subcommands (list, show, validate, test, init) |
+| `policy.rs` | `puzzlectl policy` subcommands (reload, test, add-rule) |
 | `audit.rs` | `puzzlectl audit` subcommands (list, export, verify) |
 | `compliance.rs` | `puzzlectl compliance` subcommand: evidence generation for regulatory frameworks |
 | `sim.rs` | `puzzlectl sim` subcommand: governance simulator for testing governance policies (gated behind `sim` Cargo feature) |
@@ -305,6 +305,11 @@ Agent profiles are YAML files that define the complete access control and resour
 ```yaml
 # Required: unique name for the profile
 name: my-custom-agent
+
+# Optional: inherit from another profile (max depth 3, cycle detection enforced).
+# Vec fields (allowlists, denylist) inherit from parent when empty in child.
+# Scalar fields always use the child's value.
+extends: standard
 
 # Required: human-readable description
 description: >
@@ -385,6 +390,21 @@ All profiles are validated against the JSON schema at `policies/schemas/profile.
 puzzlectl profile validate /path/to/my-profile.yaml
 ```
 
+### Generating a Profile
+
+Use `puzzlectl profile init` to generate a new profile YAML from templates:
+
+```bash
+# Interactive mode (prompts for each field)
+puzzlectl profile init --out /path/to/my-agent.yaml
+
+# Non-interactive with inheritance
+puzzlectl profile init --non-interactive --name my-agent --extends standard \
+    --network-mode Gated --out /path/to/my-agent.yaml
+```
+
+The `--extends` flag sets the `extends` field in the generated YAML. Child profiles inherit Vec fields (allowlists, denylist) from the parent when left empty, while scalar fields always use the child's value. Inheritance depth is limited to 3 levels, and cycles are detected at load time.
+
 ---
 
 ## Writing Rego Governance Policies
@@ -441,6 +461,24 @@ violations[v] if {
     }
 }
 ```
+
+### Generating Rules from Templates
+
+Use `puzzlectl policy add-rule` to generate Rego rules from common templates without writing Rego by hand:
+
+```bash
+# Deny production config files (preview only)
+puzzlectl policy add-rule --deny-path "*.prod.yml" --dry-run
+
+# Deny specific extensions with critical severity
+puzzlectl policy add-rule --deny-extension ".exe,.dll" --severity critical
+
+# Combine multiple constraints
+puzzlectl policy add-rule --deny-path "/secrets/*" --max-file-size 5242880 \
+    --max-files 500 --severity error
+```
+
+The `--dry-run` flag prints the generated Rego to stdout without writing any files.
 
 ### Default Rules
 
@@ -568,6 +606,14 @@ def inspect_branch(branch_id: str) -> dict:
 def approve_branch(branch_id: str):
     subprocess.run(["puzzlectl", "branch", "approve", branch_id], check=True)
 ```
+
+> **Simplified workflow:** `puzzlectl run` combines branch creation, activation, polling, diff display, and commit/rollback into a single command:
+> ```bash
+> puzzlectl run --profile=standard -- python3 agent.py
+> puzzlectl run --auto-commit -- ./build.sh
+> puzzlectl run --auto-rollback -- ./experiment.sh
+> ```
+> Use `--no-diff` to suppress the diff display, or `--base=.` to set the workspace root explicitly.
 
 ---
 

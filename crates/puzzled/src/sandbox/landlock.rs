@@ -571,6 +571,7 @@ mod tests {
             allow_symlinks: false,
             allow_exec_overlay: false,
             credentials: None,
+            extends: None,
         };
 
         let result = LandlockBuilder::apply(&profile, &[], None);
@@ -613,6 +614,7 @@ mod tests {
             allow_symlinks: false,
             allow_exec_overlay: false,
             credentials: None,
+            extends: None,
         };
 
         // With extra write paths and proxy port
@@ -671,6 +673,7 @@ mod tests {
             allow_symlinks: false,
             allow_exec_overlay: false,
             credentials: None,
+            extends: None,
         };
 
         let result = LandlockBuilder::apply(&profile, &[], None);
